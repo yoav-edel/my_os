@@ -1,0 +1,14 @@
+# CMake build directories
+cmake-build-*/
+
+# IDE files
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
