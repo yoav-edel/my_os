@@ -5,25 +5,9 @@
 #ifndef MYKERNELPROJECT_IDT_H
 #define MYKERNELPROJECT_IDT_H
 
-#include <stdint.h>
+#include "../std/stdint.h"
 
-struct idt_entry { // size = 8 bytes
-    uint16_t offset_low;
-    uint16_t selector;
-    uint8_t zero;
-    uint8_t type_attr;
-    uint16_t offset_high;
-} __attribute__((packed));
 
-struct idt_ptr {
-    uint16_t limit;
-    uint32_t base;
-} __attribute__((packed));
-
-#define IDT_ENTRIES 256
-struct idt_entry idt[IDT_ENTRIES];
-
-struct idt_ptr idtPtr;
 
 
 void init_idt();

@@ -2,7 +2,7 @@
 #ifndef VMM_H
 #define VMM_H
 
-#include <stdint.h>
+#include "../std/stdint.h"
 #include <stdbool.h>
 
 // Page size
@@ -102,6 +102,8 @@ inline bool is_page_present(page_entry_t *entry)
 {
     return *entry & PRESENT;
 }
+
+
 
 inline bool is_table_present(page_table_t *entry)
 {

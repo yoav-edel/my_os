@@ -5,7 +5,7 @@
 #ifndef MYKERNELPROJECT_PMM_H
 #define MYKERNELPROJECT_PMM_H
 
-#include <stdint.h>
+#include "../std/stdint.h"
 #include <stdbool.h>
 
 // Memory Configuration
