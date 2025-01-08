@@ -5,7 +5,8 @@
 #ifndef MYKERNELPROJECT_DISK_H
 #define MYKERNELPROJECT_DISK_H
 
-#include <stdint.h>
+
+#include "../std/stdint.h"
 #include <stdbool.h>
 
 #define NO_SLOT_AVAILABLE 0xFFFFFFFF

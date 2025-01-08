@@ -5,7 +5,7 @@
 #ifndef MYKERNELPROJECT_SCREEN_H
 #define MYKERNELPROJECT_SCREEN_H
 
-#include <stdint.h>
+#include "../std/stdint.h"
 
 // VGA buffer constants
 #define VGA_ADDRESS 0xB8000 // VGA text buffer start address
@@ -52,6 +52,11 @@ void scroll_screen();
  * @param c The character to display.
  */
 void put_char(uint8_t c);
+
+/**
+ * Display a integer at the current cursor position.
+ */
+void put_int(int num);
 
 /**
  * Displays a null-terminated string starting at the current cursor position.

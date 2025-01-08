@@ -21,4 +21,7 @@
 #define PIC2_CASCADE_ID 0x02
 
 #define ICW4_8086    0x01 // 8086/88 Mode
+
+void remap_pic();
+void unmask_irq(uint8_t irq);
 #endif //MYKERNELPROJECT_PIC_H

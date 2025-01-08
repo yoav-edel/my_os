@@ -1,5 +1,6 @@
 ; Set assembly to 32-bit mode
 BITS 32
+extern isr_handler
 
 ; ----------------------------------------------
 ; Macro for exceptions without an error code
@@ -52,11 +53,20 @@ ISR_NO_ERR_CODE 5    ; Bound Range Exceeded Exception
 ISR_NO_ERR_CODE 6    ; Invalid Opcode Exception
 ISR_NO_ERR_CODE 7    ; Device Not Available Exception
 ISR_NO_ERR_CODE 9    ; Coprocessor Segment Overrun Exception
+ISR_NO_ERR_CODE 15   ; Reserved (Legacy)
 ISR_NO_ERR_CODE 16   ; x87 Floating-Point Exception
-ISR_NO_ERR_CODE 17   ; Alignment Check Exception
 ISR_NO_ERR_CODE 18   ; Machine Check Exception
 ISR_NO_ERR_CODE 19   ; SIMD Floating-Point Exception
 ISR_NO_ERR_CODE 20   ; Virtualization Exception
+ISR_NO_ERR_CODE 21   ; Reserved
+ISR_NO_ERR_CODE 22   ; Reserved
+ISR_NO_ERR_CODE 23   ; Reserved
+ISR_NO_ERR_CODE 24   ; Reserved
+ISR_NO_ERR_CODE 25   ; Reserved
+ISR_NO_ERR_CODE 26   ; Reserved
+ISR_NO_ERR_CODE 27   ; Reserved
+ISR_NO_ERR_CODE 28   ; Reserved
+ISR_NO_ERR_CODE 29   ; Reserved
 ISR_NO_ERR_CODE 30   ; Security Exception
 ISR_NO_ERR_CODE 31   ; Reserved Exception
 
@@ -69,4 +79,4 @@ ISR_WITH_ERR_CODE 11   ; Segment Not Present Exception
 ISR_WITH_ERR_CODE 12   ; Stack-Segment Fault Exception
 ISR_WITH_ERR_CODE 13   ; General Protection Fault Exception
 ISR_WITH_ERR_CODE 14   ; Page Fault Exception
-ISR_WITH_ERR_CODE 17   ; Alignment Check Exception (also listed without error code)
+ISR_WITH_ERR_CODE 17   ; Alignment Check Exception

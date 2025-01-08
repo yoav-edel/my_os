@@ -1,5 +1,5 @@
-#include <assert.h>
-#include <stdint.h>
+#include "../std/assert.h"
+#include "../std/stdint.h"
 #include "pic.h"
 #include "../drivers/io.h"
 

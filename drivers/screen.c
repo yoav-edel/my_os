@@ -2,6 +2,7 @@
 // Created by Yoav on 11/24/2024.
 //
 #include "screen.h"
+#include "../std/stdlib.h"
 
 static unsigned int pos_on_screen = 0; // Start at the top-left corner of the screen
 static uint8_t color = WHITE_ON_BLACK; // Default color
@@ -79,6 +80,18 @@ void put_char(uint8_t c) {
 }
 
 /*
+ * Puts an integer on the screen at the current cursor position.
+ */
+void put_int(int num) {
+    // Convert the integer to a string
+    char num_str[12]; // Longest int is -2147483648 (11 characters) + null terminator
+    int_to_string(num, num_str);
+
+    // Display the string
+    put_string(num_str);
+}
+
+/*
  * Puts a null-terminated string on the screen starting at the current cursor position.
  */
 void put_string(const char *str) {
@@ -95,3 +108,4 @@ void set_color(uint8_t new_color) {
 void set_color_to_default() {
     color = WHITE_ON_BLACK;
 }
+

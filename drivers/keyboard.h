@@ -5,8 +5,9 @@
 #ifndef MYKERNELPROJECT_KEYBOARD_H
 #define MYKERNELPROJECT_KEYBOARD_H
 
-#include <stdint.h>
 
+#include "../std/stdint.h"
+#include "../std/stdbool.h"
 void keyboard_handler();
 
 #define KEYBOARD_DATA_PORT 0x60
