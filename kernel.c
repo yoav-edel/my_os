@@ -26,8 +26,14 @@
 
 #include "drivers/screen.h"
 #include "shell.h"
+#include "interupts/idt.h"
+#include "interupts/pic.h"
+#include "gdt.h"
 void kernel_main() {
-    clear_screen();
+    init_idt();
+    remap_pic();
+    // test the interrupts
+    asm volatile("sti"); // enable interrupts
     put_string("Kernel loaded successfully. its yoav kernel\n");
     shell();
     while (1) {
