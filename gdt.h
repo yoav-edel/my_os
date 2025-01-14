@@ -7,6 +7,20 @@
 
 #include "std/stdint.h"
 
+// Define a GDT pointer structure
+struct gdt_ptr{
+    uint16_t limit; // Size of the GDT table minus 1
+    uint32_t base;   // Address of the first GDT entry
+} __attribute__((packed));
+
+struct gdt_entry {
+    uint16_t limit_low;  // Lower 16 bits of the segment limit
+    uint16_t base_low;   // Lower 16 bits of the base address
+    uint8_t base_mid;    // Middle 8 bits of the base address
+    uint8_t access;      // Access flags (type, privilege level, present)
+    uint8_t granularity; // Granularity and upper 4 bits of the segment limit
+    uint8_t base_high;   // Upper 8 bits of the base address
+} __attribute__((packed));
 
 
 
@@ -43,15 +57,15 @@ void load_gdt();
 
 
 #define NULL_ENTRY 0
-#define KERNEL_CODE_ENTRY 1
-#define KERNEL_DATA_ENTRY 2
-#define USER_CODE_ENTRY 3
-#define USER_DATA_ENTRY 4
+#define KERNEL_CODE_ENTRY 2
+#define KERNEL_DATA_ENTRY 3
+#define USER_CODE_ENTRY 4
+#define USER_DATA_ENTRY 5
 
-#define KERNEL_CODE_SELECTOR 0x08
-#define KERNEL_DATA_SELECTOR 0x10
-#define USER_CODE_SELECTOR 0x1B
-#define USER_DATA_SELECTOR 0x23
+#define KERNEL_CODE_SELECTOR 0x10
+#define KERNEL_DATA_SELECTOR 0x18
+#define USER_CODE_SELECTOR 0x20
+#define USER_DATA_SELECTOR 0x28
 
 #define GDT_CODE_ACCESS 0x9A
 #define GDT_CODE_FLAGS 0xC

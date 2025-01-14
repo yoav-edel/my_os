@@ -6,14 +6,6 @@
 #include "gdt.h"
 
 // Define a GDT entry structure size - 8 bytes
-struct gdt_entry {
-    uint16_t limit_low;  // Lower 16 bits of the segment limit
-    uint16_t base_low;   // Lower 16 bits of the base address
-    uint8_t base_mid;    // Middle 8 bits of the base address
-    uint8_t access;      // Access flags (type, privilege level, present)
-    uint8_t granularity; // Granularity and upper 4 bits of the segment limit
-    uint8_t base_high;   // Upper 8 bits of the base address
-} __attribute__((packed));
 
 
 // Define the number of GDT entries
@@ -24,11 +16,7 @@ struct gdt_entry gdt[GDT_ENTRIES];
 // Define the GDT pointer
 struct gdt_ptr gdtPtr;
 
-// Define a GDT pointer structure
-struct gdt_ptr{
-    uint16_t limit; // Size of the GDT table minus 1
-    uint32_t base;   // Address of the first GDT entry
-} __attribute__((packed));
+
 
 /**
  * @brief Loads the Global Descriptor Table (GDT).

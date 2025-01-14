@@ -12,7 +12,7 @@
 
 void init_idt();
 void init_idt_entries();
-void idt_set_gate(uint8_t num, uint32_t base, uint16_t selector, uint8_t type_attr);
+void idt_set_gate(uint8_t num, uint32_t base, uint16_t selector, uint8_t type_attr) __attribute((noinline));
 void init_idt_ptr();
 void load_idt();
 
