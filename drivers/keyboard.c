@@ -6,10 +6,12 @@
 #include "keyboard.h"
 #include "io.h"
 #include "screen.h"
+#include "../interupts/pic.h"
 
 static char keyboard_buffer[BUFFER_SIZE] = {0};
 static volatile uint8_t buffer_head = 0;
 static volatile uint8_t buffer_tail = 0;
+
 
 
 inline static bool is_keyboard_buffer_Empty()
@@ -21,7 +23,7 @@ void keyboard_handler()
 {
     uint8_t scancode = inb(KEYBOARD_DATA_PORT);
     handle_scancode(scancode);
-
+    send_ack_keyboard();
 }
 
 static bool shift_pressed = false;
