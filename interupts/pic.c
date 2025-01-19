@@ -3,6 +3,15 @@
 #include "pic.h"
 #include "../drivers/io.h"
 
+
+
+static void mask_all_except_keyboard();
+
+void send_ack_keyboard() {
+    outb(PIC1_COMMAND, PCI_EOI);
+}
+
+
 void remap_pic() {
     // Disable interrupts
     asm volatile("cli");
@@ -30,6 +39,10 @@ void remap_pic() {
     outb(PIC1_DATA, master_mask);
     outb(PIC2_DATA, slave_mask);
 
+    // just for now
+    // Unmask all IRQs except the keyboard
+    mask_all_except_keyboard();
+
     // Re-enable interrupts
     asm volatile("sti");
 }
@@ -50,4 +63,15 @@ void unmask_irq(uint8_t irq) {
 
     value = inb(port) & ~(1 << irq); // Clear the mask for this IRQ
     outb(port, value);
+}
+
+
+void mask_all_except_keyboard() {
+    // Keyboard is IRQ1, so we only want to unmask IRQ1
+    uint8_t master_mask = ~(1 << 1); // Unmask IRQ1, mask all others
+    uint8_t slave_mask = 0xFF;       // Mask all IRQs on the slave PIC
+
+    // Set the masks
+    outb(PIC1_DATA, master_mask);
+    outb(PIC2_DATA, slave_mask);
 }

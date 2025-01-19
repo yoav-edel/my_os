@@ -22,6 +22,9 @@
 
 #define ICW4_8086    0x01 // 8086/88 Mode
 
+#define PCI_EOI 0x20
+
 void remap_pic();
 void unmask_irq(uint8_t irq);
+void send_ack_keyboard();
 #endif //MYKERNELPROJECT_PIC_H

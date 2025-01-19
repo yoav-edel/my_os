@@ -1,63 +1,83 @@
-; Set assembly to 32-bit mode
 BITS 32
 extern isr_handler
 
 ; ----------------------------------------------
-; Macro for exceptions without an error code
+; Macros
 ; ----------------------------------------------
 %macro ISR_NO_ERR_CODE 1
-    global isr%1             ; Declare the ISR label as global for linking
+global isr%1
 isr%1:
-    cli                      ; Clear Interrupt Flag - disable interrupts
-    push dword 0             ; Push a dummy error code onto the stack
-    push dword %1            ; Push the interrupt number onto the stack
-    pusha                    ; Push all general-purpose registers onto the stack
-    mov eax, esp             ; Move the stack pointer to EAX (pointer to 'registers_t')
-    push eax                 ; Push the pointer to the 'registers_t' structure
-    call isr_handler         ; Call the common ISR handler function
-    add esp, 4               ; Clean up the stack (remove the argument to isr_handler)
-    popa                     ; Restore all general-purpose registers from the stack
-    add esp, 8               ; Clean up the interrupt number and error code from the stack
-    sti                      ; Set Interrupt Flag - re-enable interrupts
-    iret                     ; Return from interrupt
+    cli                         ; disable interrupts
+
+    ; CPU did NOT push an error code for this exception,
+    ; so push a dummy 0 so that stack layout remains consistent:
+    push dword 0                ; err_code = 0
+
+    ; Push the interrupt number:
+    push dword %1               ; int_no
+
+    ; Push all general-purpose registers:
+    pushad                       ; pushes EAX,ECX,EDX,EBX,ESP,EBP,ESI,EDI
+
+    ; At this point, stack layout from top (ESP) down is:
+    ;   [EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX, int_no, err_code, retEIP, retCS, retEFLAGS, (retUserESP?), (retSS?) ]
+
+    mov eax, esp
+    push eax                     ; pass (registers_t*) to isr_handler
+    call isr_handler
+    add esp, 4                   ; pop the argument to isr_handler
+
+    popad                        ; restore general-purpose registers
+    add esp, 8                   ; pop int_no and err_code
+    sti                          ; re-enable interrupts
+    iret                         ; return from interrupt
 %endmacro
 
-; ----------------------------------------------
-; Macro for exceptions with an error code
-; ----------------------------------------------
 %macro ISR_WITH_ERR_CODE 1
-    global isr%1             ; Declare the ISR label as global for linking
+global isr%1
 isr%1:
-    cli                      ; Clear Interrupt Flag - disable interrupts
-    push dword %1            ; Push the interrupt number onto the stack
-    pusha                    ; Push all general-purpose registers onto the stack
-    mov eax, esp             ; Move the stack pointer to EAX (pointer to 'registers_t')
-    push eax                 ; Push the pointer to the 'registers_t' structure
-    call isr_handler         ; Call the common ISR handler function
-    add esp, 4               ; Clean up the stack (remove the argument to isr_handler)
-    popa                     ; Restore all general-purpose registers from the stack
-    add esp, 4               ; Clean up the interrupt number from the stack
-    sti                      ; Set Interrupt Flag - re-enable interrupts
-    iret                     ; Return from interrupt
+    cli
+
+    ; For exceptions that *do* push an error code automatically:
+    ; CPU has already pushed [error_code, EIP, CS, EFLAGS, ...].
+    ; But we want the same layout as the "no err code" case; so we *only* push the int_no.
+    ;
+    ; The hardware-pushed error code is *below* EIP on the stack. We'll treat that
+    ; as the "err_code" in our struct. So just push the int number here:
+
+    push dword %1               ; int_no
+
+    pushad
+
+    mov eax, esp
+    push eax
+    call isr_handler
+    add esp, 4
+
+    popad
+    add esp, 8                  ; pop int_no + the error_code the CPU pushed
+    sti
+    iret
 %endmacro
 
+
 ; ----------------------------------------------
-; Generate ISR stubs for exceptions without error codes
+; Exceptions WITHOUT error codes
 ; ----------------------------------------------
-ISR_NO_ERR_CODE 0    ; Divide Error Exception
-ISR_NO_ERR_CODE 1    ; Debug Exception
-ISR_NO_ERR_CODE 2    ; Non-Maskable Interrupt Exception
-ISR_NO_ERR_CODE 3    ; Breakpoint Exception
-ISR_NO_ERR_CODE 4    ; Overflow Exception
-ISR_NO_ERR_CODE 5    ; Bound Range Exceeded Exception
-ISR_NO_ERR_CODE 6    ; Invalid Opcode Exception
-ISR_NO_ERR_CODE 7    ; Device Not Available Exception
-ISR_NO_ERR_CODE 9    ; Coprocessor Segment Overrun Exception
-ISR_NO_ERR_CODE 15   ; Reserved (Legacy)
-ISR_NO_ERR_CODE 16   ; x87 Floating-Point Exception
-ISR_NO_ERR_CODE 18   ; Machine Check Exception
-ISR_NO_ERR_CODE 19   ; SIMD Floating-Point Exception
-ISR_NO_ERR_CODE 20   ; Virtualization Exception
+ISR_NO_ERR_CODE 0    ; Divide Error
+ISR_NO_ERR_CODE 1    ; Debug
+ISR_NO_ERR_CODE 2    ; NMI
+ISR_NO_ERR_CODE 3    ; Breakpoint
+ISR_NO_ERR_CODE 4    ; Overflow
+ISR_NO_ERR_CODE 5    ; Bound Range
+ISR_NO_ERR_CODE 6    ; Invalid Opcode
+ISR_NO_ERR_CODE 7    ; Device Not Available
+ISR_NO_ERR_CODE 9    ; Coprocessor Segment Overrun
+ISR_NO_ERR_CODE 15   ; Reserved
+ISR_NO_ERR_CODE 16   ; x87 Floating-Point
+ISR_NO_ERR_CODE 18   ; Machine Check
+ISR_NO_ERR_CODE 19   ; SIMD Floating-Point
+ISR_NO_ERR_CODE 20   ; Virtualization
 ISR_NO_ERR_CODE 21   ; Reserved
 ISR_NO_ERR_CODE 22   ; Reserved
 ISR_NO_ERR_CODE 23   ; Reserved
@@ -68,15 +88,16 @@ ISR_NO_ERR_CODE 27   ; Reserved
 ISR_NO_ERR_CODE 28   ; Reserved
 ISR_NO_ERR_CODE 29   ; Reserved
 ISR_NO_ERR_CODE 30   ; Security Exception
-ISR_NO_ERR_CODE 31   ; Reserved Exception
+ISR_NO_ERR_CODE 31   ; Reserved
+ISR_NO_ERR_CODE 33   ; Keyboard Interrupt
 
 ; ----------------------------------------------
-; Generate ISR stubs for exceptions with error codes
+; Exceptions WITH error codes
 ; ----------------------------------------------
-ISR_WITH_ERR_CODE 8    ; Double Fault Exception
-ISR_WITH_ERR_CODE 10   ; Invalid TSS Exception
-ISR_WITH_ERR_CODE 11   ; Segment Not Present Exception
-ISR_WITH_ERR_CODE 12   ; Stack-Segment Fault Exception
-ISR_WITH_ERR_CODE 13   ; General Protection Fault Exception
-ISR_WITH_ERR_CODE 14   ; Page Fault Exception
-ISR_WITH_ERR_CODE 17   ; Alignment Check Exception
+ISR_WITH_ERR_CODE 8    ; Double Fault
+ISR_WITH_ERR_CODE 10   ; Invalid TSS
+ISR_WITH_ERR_CODE 11   ; Segment Not Present
+ISR_WITH_ERR_CODE 12   ; Stack-Segment Fault
+ISR_WITH_ERR_CODE 13   ; General Protection Fault
+ISR_WITH_ERR_CODE 14   ; Page Fault
+ISR_WITH_ERR_CODE 17   ; Alignment Check

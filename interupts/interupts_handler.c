@@ -6,7 +6,7 @@
 #include "interupts_handler.h"
 #include "../drivers/screen.h"
 #include "../std/stdlib.h"
-
+#include "../drivers/keyboard.h"
 const char *exception_messages[] = {
         "Division By Zero",
         "Debug",
@@ -43,11 +43,8 @@ const char *exception_messages[] = {
 };
 
 
-
-//currently supports only CPU exceptions
-void isr_handler(registers_t *regs) {
-    assert(regs->int_no < CPU_EXCEPTIONS);
-
+void cpu_handler(registers_t *regs)
+{
     put_char('\n'); // New line for better visibility
     put_string("Exception: ");
     put_string(exception_messages[regs->int_no]);
@@ -59,10 +56,23 @@ void isr_handler(registers_t *regs) {
     int_to_string(regs->int_no, buffer);
     put_string(buffer);
     put_char('\n');
-
     // Halt the system (optional)
     put_string("System Halted.\n");
     while (1) {
         asm volatile("hlt");
+    }
+}
+
+void isr_handler(registers_t *regs) {
+    // todo maybe add sainty checks
+    if(regs->int_no < CPU_EXCEPTIONS)
+        cpu_handler(regs);
+    else if(regs->int_no == KEYBOARD_ISR)
+    {
+        keyboard_handler();
+    }
+    else
+    {
+        put_string("Unknown interrupt\n");
     }
 }
