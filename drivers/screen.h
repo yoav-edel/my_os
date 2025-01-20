@@ -24,7 +24,7 @@ struct letter {
 };
 
 // Define an empty letter macro
-#define EMPTY_LETTER (struct letter){' ', WHITE_ON_BLACK}
+#define EMPTY_LETTER (struct letter){'\0', WHITE_ON_BLACK}
 
 // Function declarations
 
@@ -76,5 +76,11 @@ void set_color(uint8_t new_color);
  * Resets the text color to the default (WHITE_ON_BLACK).
  */
 void set_color_to_default();
+
+
+/**
+ * moves the cursor back by one character(none empty character - not null)
+ */
+void move_cursor_back();
 
 #endif // MYKERNELPROJECT_SCREEN_H

@@ -109,3 +109,16 @@ void set_color_to_default() {
     color = WHITE_ON_BLACK;
 }
 
+void move_cursor_back() {
+    struct letter *video_memory = (struct letter *)VGA_ADDRESS;
+
+    while (pos_on_screen > 0) {
+        pos_on_screen--;
+
+        if (video_memory[pos_on_screen].c != EMPTY_LETTER.c) {
+            video_memory[pos_on_screen] = EMPTY_LETTER;
+            break;
+        }
+    }
+}
+
