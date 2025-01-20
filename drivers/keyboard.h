@@ -15,7 +15,8 @@ void keyboard_handler();
 #define KEYRELEASE_MASK 0x80
 
 #define SHIFT_KEY 0x2A
-
+#define CAPS_LOCK 0x3A
+#define BACKSPACE 0x0E
 
 #define BUFFER_SIZE (256)
 

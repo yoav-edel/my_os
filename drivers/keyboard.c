@@ -19,6 +19,13 @@ inline static bool is_keyboard_buffer_Empty()
     return buffer_head == buffer_tail;
 }
 
+static void rm_last_char_buffer()
+{
+    if(buffer_head == buffer_tail)
+        return;
+    buffer_head = (buffer_head - 1) % BUFFER_SIZE;
+}
+
 void keyboard_handler()
 {
     uint8_t scancode = inb(KEYBOARD_DATA_PORT);
@@ -28,6 +35,7 @@ void keyboard_handler()
 
 static bool shift_pressed = false;
 static bool put_on_screen = true;
+static bool caps_lock = false;
 
 
 
@@ -40,7 +48,6 @@ void handle_scancode(uint8_t scancode)
         // Handle the key release
         if(scancode == SHIFT_KEY)
             shift_pressed = false;
-        //todo add more key releases like caps lock
     }
     else // key was pressed
     {
@@ -48,11 +55,22 @@ void handle_scancode(uint8_t scancode)
         // Handle the key press
         if(scancode == SHIFT_KEY)
             shift_pressed = true;
+        else if(scancode == CAPS_LOCK)
+            caps_lock = !caps_lock;
+        else if(scancode == BACKSPACE)
+        {
+            if(!is_keyboard_buffer_Empty()) {
+                rm_last_char_buffer();
+                if (put_on_screen) {
+                    move_cursor_back();
+                }
+            }
+        }
 
         else
         {
             char c = scancode_to_ascii(scancode);
-            if(shift_pressed)
+            if(shift_pressed || caps_lock)
             {
                 c = shift_ascii(c);
             }
