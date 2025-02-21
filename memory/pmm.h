@@ -16,10 +16,10 @@
 
 // Kernel reserved memory (e.g., first 1 MB)
 #define KERNEL_RESERVED_MEMORY (1 * 1024 * 1024)
-
+typedef uint32_t physical_addr;
 void pmm_init();
-uint32_t pmm_alloc_frame();
-void pmm_free_frame(uint32_t frame_addr);
-bool pmm_is_frame_free(uint32_t frame_addr);
+physical_addr pmm_alloc_frame();
+void pmm_free_frame(physical_addr frame_addr);
+bool pmm_is_frame_free(physical_addr frame_addr);
 
 #endif // MYKERNELPROJECT_PMM_H

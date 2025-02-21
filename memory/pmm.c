@@ -26,23 +26,23 @@ static inline size_t calc_frame_addr(size_t index, size_t offset) {
     return index * 8 * PMM_BLOCK_SIZE + offset * PMM_BLOCK_SIZE;
 }
 
-static inline size_t get_bitmap_index(uint32_t frame_addr) {
+static inline size_t get_bitmap_index(physical_addr frame_addr) {
     return frame_addr / PMM_BLOCK_SIZE / 8;
 }
 
-static inline size_t get_bitmap_offset(uint32_t frame_addr) {
+static inline size_t get_bitmap_offset(physical_addr frame_addr) {
     return frame_addr / PMM_BLOCK_SIZE % 8;
 }
 
-static inline bool is_valid_frame_addr(uint32_t frame_addr) {
+static inline bool is_valid_frame_addr(physical_addr frame_addr) {
     return frame_addr < MEMORY_SIZE && (frame_addr % PMM_BLOCK_SIZE == 0); // Frame address is aligned
 }
 
-static inline void pmm_mark_used(uint32_t frame_addr) {
+static inline void pmm_mark_used(physical_addr frame_addr) {
     pmm_bitmap[get_bitmap_index(frame_addr)] |= BIT_MASK(get_bitmap_offset(frame_addr));
 }
 
-static inline void pmm_mark_free(uint32_t frame_addr) {
+static inline void pmm_mark_free(physical_addr frame_addr) {
     pmm_bitmap[get_bitmap_index(frame_addr)] &= ~BIT_MASK(get_bitmap_offset(frame_addr));
 }
 
@@ -58,16 +58,16 @@ void pmm_init() {
     }
 
     // Reserve memory for kernel and hardware
-    for (uint32_t addr = 0; addr < KERNEL_RESERVED_MEMORY; addr += PMM_BLOCK_SIZE) {
+    for (physical_addr addr = 0; addr < KERNEL_RESERVED_MEMORY; addr += PMM_BLOCK_SIZE) {
         pmm_mark_used(addr);
     }
 }
 
 // Allocate a single frame using next-fit strategy
-uint32_t pmm_alloc_frame() {
+physical_addr pmm_alloc_frame() {
     // Check if we can reuse the last freed frame
     if (last_free_frame.index != -1 && last_free_frame.offset != -1) {
-        uint32_t frame_addr = calc_frame_addr(last_free_frame.index, last_free_frame.offset);
+        physical_addr frame_addr = calc_frame_addr(last_free_frame.index, last_free_frame.offset);
         pmm_mark_used(frame_addr);
         last_free_frame.index = -1;
         last_free_frame.offset = -1;
@@ -107,14 +107,14 @@ uint32_t pmm_alloc_frame() {
 }
 
 // Free a previously allocated frame
-void pmm_free_frame(uint32_t frame_addr) {
+void pmm_free_frame(physical_addr frame_addr) {
     assert(is_valid_frame_addr(frame_addr));
     pmm_mark_free(frame_addr);
     last_free_frame.index = get_bitmap_index(frame_addr);
     last_free_frame.offset = get_bitmap_offset(frame_addr);
 }
 
-bool pmm_is_frame_free(uint32_t frame_addr) {
+bool pmm_is_frame_free(physical_addr frame_addr) {
     assert(is_valid_frame_addr(frame_addr));
     return !(pmm_bitmap[get_bitmap_index(frame_addr)] & BIT_MASK(get_bitmap_offset(frame_addr)));
 }
