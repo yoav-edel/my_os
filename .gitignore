@@ -1,14 +1,6 @@
-# CMake build directories
-cmake-build-*/
-
-# IDE files
-.idea/
-*.iml
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Logs and temporary files
-*.log
-*.tmp
+# Keep C, assembly, header, text, and linker script files
+!*.c
+!*.h
+!*.asm
+!*.txt
+!*.ld
