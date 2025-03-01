@@ -10,6 +10,8 @@
 #include "../std/stdint.h"
 #include "../std/stdbool.h"
 
+typedef uint32_t disk_addr;
+
 // Register offsets from the base I/O port
 #define ATA_REG_DATA          0x0
 #define ATA_REG_ERR           0x1 // Error register (read) / Features register (write)
@@ -79,9 +81,9 @@ bool identify_drive(uint16_t base_port, uint8_t drive, identifyDeviceData *data)
 /*
  *
  */
-bool ata_read_sectors(uint8_t disk_num, uint32_t lba_address, uint8_t sector_count, void *buffer);
+bool ata_read_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_count, void *buffer);
 
-bool ata_write_sectors(uint8_t disk_num, uint32_t lba_address, uint8_t sector_count, void *buffer);
+bool ata_write_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_count, void *buffer);
 
 /**
  * Prints the Master Boot Record (MBR) of the specified disk.
@@ -94,6 +96,10 @@ bool ata_write_sectors(uint8_t disk_num, uint32_t lba_address, uint8_t sector_co
  * print the first 512 bytes of the disk
  */
 void test_disk_driver();
+
+
+disk_addr disk_alloc_slot();
+
 
 
 #endif // DISK_H
