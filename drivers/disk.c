@@ -275,7 +275,7 @@ bool identify_drive(uint16_t base_port, uint8_t drive, identifyDeviceData *data)
  * @param buffer        The buffer to store the data.
  * @return              true if the operation was successful, false otherwise.
  */
-bool ata_read_sectors(uint8_t disk_num, uint32_t lba_address, uint8_t sector_count, void *buffer) {
+bool ata_read_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_count, void *buffer) {
     if (disk_num >= sizeof(disks) / sizeof(disks[0]))
         return false;
 
@@ -356,7 +356,7 @@ bool ata_read_sectors(uint8_t disk_num, uint32_t lba_address, uint8_t sector_cou
  * @param buffer        The buffer containing the data.
  * @return              true if the operation was successful, false otherwise.
  */
-bool ata_write_sectors(uint8_t disk_num, uint32_t lba_address, uint8_t sector_count, void *buffer) {
+bool ata_write_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_count, void *buffer) {
     if (disk_num >= sizeof(disks) / sizeof(disks[0]) || sector_count > 256)
         return false;
 
