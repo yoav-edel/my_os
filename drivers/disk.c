@@ -1,8 +1,7 @@
 #include "disk.h"
 #include "io.h"
 #include "screen.h"
-#include "../errors.h"
-
+#include "../memory/utills.h"
 /*
  * Explanation about the delay that appears sometimes in the code:
  * According to the ATA specifications, after selecting a new drive (Master/Slave), a short delay of 400ns is required before reading the Status Register.
@@ -24,7 +23,7 @@ static identifyDeviceData disk2 = {0};
 static identifyDeviceData disk3 = {0};
 static identifyDeviceData disk4 = {0};
 
-static identifyDeviceData* disks[4] = {&disk1, &disk2, &disk3, &disk4};
+static identifyDeviceData *disks[4] = {&disk1, &disk2, &disk3, &disk4};
 
 /*
  * The following functions are used to extract the LBA address into its components.
@@ -357,7 +356,7 @@ bool ata_read_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_co
  * @return              true if the operation was successful, false otherwise.
  */
 bool ata_write_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_count, void *buffer) {
-    if (disk_num >= sizeof(disks) / sizeof(disks[0]) || sector_count > 256)
+    if (disk_num >= sizeof(disks) / sizeof(disks[0]))
         return false;
 
     identifyDeviceData *disk = disks[disk_num];
@@ -482,5 +481,117 @@ void test_disk_driver(){
         put_char(buffer2[i]);
     }
     put_string("\ndone reading\n");
+}
+
+// ------------------------------------------------------------
+// Wrapper functions for the disk driver, to allow easy access
+static uint8_t curr_disk = 0;
+
+void switch_disk(uint8_t num) {
+    curr_disk = num;
+}
+
+/*
+ * Read len bytes from the current disk (assumed to be disks[curr_disk])
+ * starting at logical block address addr, splitting the operation into
+ * multiple calls if necessary.
+ *
+ * Returns the number of bytes read on success (which will be len if no errors occur),
+ * or 0 if an error is encountered.
+ */
+size_t disk_read(disk_addr addr, size_t len, void *buffer) {
+    size_t total_read = 0;
+
+    /* Get disk info for current disk (curr_disk is assumed global) */
+    identifyDeviceData *disk = disks[curr_disk];
+    if (!disk || !disk->valid)
+        return 0;
+
+
+    size_t sector_size = disk->logical_sector_size;
+    /* Calculate the number of sectors needed to cover len bytes (rounding up) */
+    size_t total_sectors = (len + sector_size - 1) / sector_size;
+
+    /* Temporary buffer to hold one sector's data */
+    uint8_t temp_buffer[sector_size * MAX_SECTORS_PER_CALL];
+
+    while (total_sectors > 0) {
+        uint8_t sectors_this_call;
+        if (total_sectors >= MAX_SECTORS_PER_CALL)
+            sectors_this_call = 0;
+        else
+            sectors_this_call = total_sectors;
+
+        /* Read sectors from the disk */
+        if (!ata_read_sectors(curr_disk, addr, sectors_this_call, temp_buffer))
+            return total_read;
+
+
+        /* Determine how many sectors were read in this call */
+        size_t sectors_read = (sectors_this_call == 0 ? MAX_SECTORS_PER_CALL : sectors_this_call);
+        size_t bytes_this_call = sectors_read * sector_size;
+
+        // Adjust the number of bytes read if necessary
+        if (total_read + bytes_this_call > len)
+            bytes_this_call = len - total_read;
+
+        memcpy((uint8_t *) buffer + total_read, temp_buffer, bytes_this_call);
+        total_read += bytes_this_call;
+        total_sectors -= sectors_read;
+        addr += sectors_read;
+    }
+
+    return total_read;
+}
+
+
+/*
+ * Write len bytes to the current disk (assumed to be disks[curr_disk])
+ * starting at logical block address addr, splitting the operation into
+ * multiple calls if necessary.
+ *
+ * Returns the number of bytes written on success (which will be len if no errors occur),
+ *
+ */
+
+size_t disk_write(disk_addr addr, size_t len, const void *buffer) {
+    size_t total_written = 0;
+
+    /* Get disk info for current disk (curr_disk is assumed global) */
+    identifyDeviceData *disk = disks[curr_disk];
+    if (!disk || !disk->valid)
+        return 0;
+
+    size_t sector_size = disk->logical_sector_size;
+    /* Calculate the number of sectors needed to cover len bytes (rounding up) */
+    size_t total_sectors = (len + sector_size - 1) / sector_size;
+
+    /* Temporary buffer to hold one sector's data */
+    uint8_t temp_buffer[sector_size * MAX_SECTORS_PER_CALL];
+
+    while (total_sectors > 0) {
+        uint8_t sectors_this_call;
+        if (total_sectors >= MAX_SECTORS_PER_CALL)
+            sectors_this_call = 0;
+        else
+            sectors_this_call = total_sectors;
+
+        /* Determine how many bytes to write in this call */
+        size_t bytes_this_call = sectors_this_call * sector_size;
+        if (total_written + bytes_this_call > len)
+            bytes_this_call = len - total_written;
+
+        memcpy(temp_buffer, (uint8_t *) buffer + total_written, bytes_this_call);
+
+        /* Write sectors to the disk */
+        if (!ata_write_sectors(curr_disk, addr, sectors_this_call, temp_buffer))
+            return total_written;
+
+        total_written += bytes_this_call;
+        total_sectors -= sectors_this_call;
+        addr += sectors_this_call;
+    }
+
+    return total_written;
 }
 

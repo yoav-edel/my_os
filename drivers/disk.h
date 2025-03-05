@@ -11,7 +11,7 @@
 #include "../std/stdbool.h"
 
 typedef uint32_t disk_addr;
-
+#define NO_SLOT_AVAILABLE 0
 // Register offsets from the base I/O port
 #define ATA_REG_DATA          0x0
 #define ATA_REG_ERR           0x1 // Error register (read) / Features register (write)
@@ -40,6 +40,8 @@ typedef uint32_t disk_addr;
 // Drive selection values
 #define MASTER_DRIVE          0xE0 // Master drive, LBA mode
 #define SLAVE_DRIVE           0xF0 // Slave drive, LBA mode
+
+#define MAX_SECTORS_PER_CALL  256
 
 // Identify Device Data Structure
 typedef struct {
@@ -97,6 +99,7 @@ bool ata_write_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_c
  */
 void test_disk_driver();
 
+void switch_disk(uint8_t disk_num);
 
 disk_addr disk_alloc_slot();
 
