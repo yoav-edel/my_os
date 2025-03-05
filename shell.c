@@ -3,16 +3,17 @@
 //
 
 #include "shell.h"
-#include "drivers/screen.h" // For screen driver functionality
-#include "drivers/keyboard.h" // For keyboard driver functionality#include "std/string.h"      // For string operations
-#include "std/string.h" // For string operations
-
+#include "drivers/screen.h"
+#include "drivers/keyboard.h"
+#include "std/string.h"
+#include "std/stdlib.h"
 // Main shell function
 void shell() {
     char input[MAX_INPUT_LENGTH]; // Buffer for user input
 
-    // Display a welcome mesage
+    // Display a welcome message
     shell_welcome_message();
+
     // Shell loop
     while (1) {
         // Display the prompt
@@ -25,17 +26,15 @@ void shell() {
             c = keyboard_buffer_get(); // Read a character from the keyboard buffer
 
             if (c == '\n') { // Enter key
-                put_char(c); // Echo newline to the screen
-                break;
+                break; // End input on Enter
             } else if (c == '\b') { // Backspace key
                 if (index > 0) {
                     index--;
-                    put_string("\b \b"); // Handle backspace on screen
+                    put_string("\b \b"); // Remove character visually
                 }
             } else {
                 if (index < MAX_INPUT_LENGTH - 1) {
                     input[index++] = c;
-                    put_char(c); // Echo the character to the screen
                 }
             }
         } while (1);
@@ -49,35 +48,55 @@ void shell() {
 
 // Display the welcome message
 void shell_welcome_message() {
-    clear_screen();
-    set_color(WHITE_ON_BLACK);
-    put_string("Welcome to Simple Shell!\n");
+    clear_screen(); // Clear the screen initially
+    put_string("Welcome to Enhanced Shell!\n");
     put_string("Type 'help' to see available commands.\n\n");
-    set_color_to_default();
 }
 
 // Display the shell prompt
 void shell_prompt() {
-    set_color(WHITE_ON_BLACK);
-    put_string("SimpleShell> ");
-    set_color_to_default();
+    put_string("EnhancedShell> ");
 }
 
 // Execute commands entered in the shell
 void execute_command(const char *input) {
-    if (strcmp(input, "help") == 0) {
+    if (!strcmp(input, "help")) {
         put_string("\nAvailable commands:\n");
-        put_string("  clear  - Clears the screen\n");
-        put_string("  echo   - Echoes the input text\n");
-        put_string("  exit   - Exits the shell\n");
-    } else if (strcmp(input, "clear") == 0) {
+        put_string("  clear         - Clears the screen\n");
+        put_string("  echo [text]   - Echoes the input text\n");
+        put_string("  color [num]   - Changes the text color\n");
+        put_string("  scroll        - Scrolls the screen\n");
+        put_string("  clearrow [n]  - Clears a specific row (0-24)\n");
+        put_string("  exit          - Exits the shell\n");
+    } else if (!strcmp(input, "clear")) {
         clear_screen();
-    } else if (strncmp(input, "echo ", 5) == 0) {
+    } else if (!strncmp(input, "echo ", 5)) {
         put_string("\n");
         put_string(input + 5); // Print everything after "echo "
         put_string("\n");
-    } else if (strcmp(input, "exit") == 0) {
-        put_string("\nExiting Simple Shell. Goodbye!\n");
+    } else if (!strncmp(input, "color ", 6)) {
+        int color_code = atoi(input + 6); // Convert argument to an integer
+        if (color_code >= 0 && color_code <= 255) {
+            set_color(color_code); // Set the color
+            put_string("\nText color changed.\n");
+        } else {
+            put_string("\nInvalid color code! Use a value between 0 and 255.\n");
+        }
+    } else if (!strcmp(input, "scroll")) {
+        put_string("\nScrolling the screen...\n");
+        scroll_screen();
+    } else if (!strncmp(input, "clearrow ", 9)) {
+        int row = atoi(input + 9); // Parse the row number
+        if (row >= 0 && row < VGA_HEIGHT) {
+            clear_row(row); // Clear the specified row
+            put_string("\nRow cleared.\n");
+        } else {
+            put_string("\nInvalid row number! Use a value between 0 and ");
+            put_int(VGA_HEIGHT - 1);
+            put_string(".\n");
+        }
+    } else if (!strcmp(input, "exit")) {
+        put_string("\nExiting Enhanced Shell. Goodbye!\n");
         while (1) {
             // Infinite loop to halt
         }
@@ -87,4 +106,3 @@ void execute_command(const char *input) {
         put_string("\nType 'help' for a list of commands.\n");
     }
 }
-
