@@ -94,7 +94,7 @@ inline void page_entry_remove_attrib(page_entry_t *e, uint32_t attrib) {
     *e &= ~attrib;
 }
 
-inline bool is_page_swapped(page_entry_t *e) {
+inline bool is_page_swapped(const page_entry_t *e) {
     return *e & SWAPPED;
 }
 
