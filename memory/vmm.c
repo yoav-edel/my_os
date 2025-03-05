@@ -8,17 +8,49 @@
 #include "utills.h"
 #include "../errors.h"
 #include "../drivers/disk.h"
+#include "kmalloc.h"
 
 
 typedef struct page_t page_t;
 static page_directory_t *current_directory = NULL;
+static page_directory_t *kernel_directory = NULL;
+
+typedef struct page_fifo_node {
+    page_entry_t *entry;
+    struct page_fifo_node *next;
+} page_fifo_node_t;
+
+typedef struct {
+    page_fifo_node_t *head;
+    page_fifo_node_t *tail;
+    size_t count;
+} page_fifo_queue_t;
+
+static page_fifo_queue_t current_page_fifo_queue = {NULL, NULL, 0};
 
 
-uint32_t disk_alloc_slot();
+static void page_fifo_enqueue(page_fifo_node_t *node) {
+    if (current_page_fifo_queue.head == NULL) {
+        current_page_fifo_queue.head = current_page_fifo_queue.tail = node;
+    } else {
+        current_page_fifo_queue.tail->next = node;
+        current_page_fifo_queue.tail = node;
+    }
+    current_page_fifo_queue.count++;
+}
+
+static page_entry_t *page_fifo_dequeue() {
+    if (current_page_fifo_queue.head == NULL)
+        return NULL;
+    page_fifo_node_t *node = current_page_fifo_queue.head;
+    current_page_fifo_queue.head = current_page_fifo_queue.head->next;
+    current_page_fifo_queue.count--;
+    return node->entry;
+}
 
 page_directory_t *vmm_create_page_directory() {
     //TODO free frames if allocation fails and then aloocate again
-    uint32_t phys_adrr_page_dir = pmm_alloc_frame();
+    physical_addr phys_adrr_page_dir = pmm_alloc_frame();
     if (phys_adrr_page_dir == PMM_NO_FRAME_AVAILABLE)
         return NULL;
 
@@ -26,7 +58,7 @@ page_directory_t *vmm_create_page_directory() {
     memset(page_dir, 0, sizeof(page_directory_t)); // Clear the page directory
     //todo copy the kernel mapping to the new page directory
     if (current_directory != NULL)
-        for (size_t i = KERNEL_START_DIRECTORY_INDEX; i < PAGE_DIR_SIZE; i++) {
+        for (size_t i = KERNEL_START_DIRECTORY_INDEX; i < TABLES_PER_DIR; i++) {
             page_dir->entries[i] = current_directory->entries[i];
         }
     return page_dir;
@@ -68,7 +100,7 @@ inline bool is_page_swapped(page_entry_t *e) {
 
 // return the page to swap out if there is no page to swap out return NULL
 page_entry_t *vmm_get_page_to_swap_out() {
-    return NULL;
+    return page_fifo_dequeue();
 }
 
 
@@ -98,7 +130,7 @@ bool vmm_swap_out_some_page() {
  * return true if the swap was successful, false otherwise
  */
 bool vmm_swap_in_page(page_entry_t *e) {
-    uint32_t frame_addr = pmm_alloc_frame();
+    physical_addr frame_addr = pmm_alloc_frame();
     if(frame_addr == PMM_NO_FRAME_AVAILABLE)
     {
         if (!vmm_swap_out_some_page())
@@ -123,7 +155,7 @@ bool vmm_swap_in_page(page_entry_t *e) {
 
 bool vmm_alloc_page(page_entry_t *e) {
     //allocate physical frame
-    uint32_t frame_addr = pmm_alloc_frame();
+    physical_addr frame_addr = pmm_alloc_frame();
     if (frame_addr == PMM_NO_FRAME_AVAILABLE) {
         if (!vmm_swap_out_some_page())
             return false;
@@ -135,6 +167,14 @@ bool vmm_alloc_page(page_entry_t *e) {
     //map the frame to the page entry
     page_entry_set_frame(e, frame_addr);
     page_entry_add_attrib(e, PRESENT);
+    page_fifo_node_t *node = (page_fifo_node_t *) kmalloc(sizeof(page_fifo_node_t));
+    if (node == NULL)
+        return false; // todo handle the error
+
+    node->entry = e;
+    page_fifo_enqueue(node);
+
+    return true;
 }
 
 
@@ -148,7 +188,7 @@ void vmm_free_page(page_entry_t *e) {
 /*
  * Maps a page to a frame
  */
-void vmm_map_page(void *vir_addr, void *phys_addr, uint32_t flags) {
+void vmm_map_page(void *vir_addr, physical_addr phys_addr, uint32_t flags) {
     assert(current_directory != NULL);
     uint32_t pd_index = get_directory_index(vir_addr);
     uint32_t pt_index = get_table_index(vir_addr);
@@ -165,7 +205,7 @@ void vmm_map_page(void *vir_addr, void *phys_addr, uint32_t flags) {
         }
     else // the table is not exist. create a new one
         {
-        uint32_t phys_addr_page_table = pmm_alloc_frame();
+            physical_addr phys_addr_page_table = pmm_alloc_frame();
         if (phys_addr_page_table == PMM_NO_FRAME_AVAILABLE)
         {
             if(!vmm_swap_out_some_page())
@@ -187,24 +227,99 @@ void vmm_map_page(void *vir_addr, void *phys_addr, uint32_t flags) {
 
 /*
  * Unmaps a page from a frame
+ * Uses FIFO to swap out the page if needed
  */
 void vmm_unmap_page() {
     assert(current_directory != NULL);
-    assert(page != NULL); // Make sure the page is not NULL
-
 
 }
 
 
 void init_paging() {
-    current_directory = (page_directory_t *) pmm_alloc_frame();
+    current_directory = kernel_directory = (page_directory_t *) pmm_alloc_frame();
     if (current_directory == NULL)
         panic("Failed to initialize paging : could not allocate a frame for the page directory. you really have fucked up computer");
 
-    for (size_t i = 0; i < PAGE_DIR_SIZE; i++) {
-        page_directory[i] = 0x00000002; // Supervisor, Read/Write, Not Present
-    }
+    // Initialize the page directory entries.
+    // Each entry is set to 0x00000002: Supervisor, Read/Write, Not Present.
+    for (size_t i = 0; i < TABLES_PER_DIR; i++)
+        page_entry_add_attrib(current_directory->entries + i, EMPTY_KERNEL_PAGE_FLAGS); //
+
 
     enable_paging();
+
+}
+
+// Error code flags for page faults
+#define PRESENT_ERROR_CODE 0x1       // Page present
+#define WRITE_ERROR_CODE 0x2         // Write operation caused the fault
+#define USER_ERROR_CODE 0x4          // Fault occurred in user mode
+#define RESERVED_ERROR_CODE 0x8      // Reserved bits set in page table entry
+#define INSTRUCTION_ERROR_CODE 0x10  // Instruction fetch caused the fault
+
+
+static inline bool is_page_present_error(uint32_t error_code) {
+    return error_code & 0x1;
+}
+
+static inline bool is_page_write_error(uint32_t error_code) {
+    return error_code & 0x2;
+}
+
+static inline bool is_page_user_error(uint32_t error_code) {
+    return error_code & 0x4;
+}
+
+static inline bool is_cow(page_entry_t *e) {
+    //todo after the cow mechanism is implemented return *e & COW
+    return false;
+}
+
+
+page_entry_t *vmm_get_page_entry(void *vir_addr) {
+    assert(current_directory != NULL);
+    uint32_t pd_index = get_directory_index(vir_addr);
+    uint32_t pt_index = get_table_index(vir_addr);
+
+    if (!is_page_present(&current_directory->entries[pd_index])) { // need to swap in the page table
+        if (!vmm_swap_in_page(&current_directory->entries[pd_index]))
+            panic("Failed to swap in page. Dont know what to do noq");
+    }
+
+    page_table_t *page_table = (page_table_t *) get_page_table_addr(current_directory, pd_index);
+    return &page_table->entries[pt_index];
+}
+
+void page_fault_handler(uint32_t error_code) {
+    uint32_t fault_addr;
+    asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
+    page_entry_t *e = vmm_get_page_entry((void *) fault_addr);
+    if (!is_page_present_error(error_code)) {
+        // The page fault was caused by a page not present
+        // fetch the page from disk if exits, else allocate a new frame
+        // and map the page to the frame
+        if (is_page_swapped(e)) {
+            if (!vmm_swap_in_page(e))
+                //todo Handle differently if its the user page(Probably make his life miserable)
+                panic("Failed to swap in page. dont know what to do so lets shut down the computer :)");
+            return; // the iret in the page fault handler will refetch the instruction
+        } else {
+            if (!vmm_alloc_page(e))
+                //todo Handle differently if its the user page(Probably throw an error that there is now memory)
+                panic("Failed to allocate a frame for the page. how tf did we mange to get here?");
+            return;
+        }
+    } else if (!is_cow(e)) {
+        //page present, if its copy on write, copy the page and map it to the new frame
+
+        //permission error, punish the user and panic if its the kernel beacsue I dont know how we got here
+        if (!is_page_user_error(error_code))
+            panic("Permission error in kernel mode. how tf did we mange to get here?");
+        else
+            //todo punish the user
+            return;
+    } else
+        //todo implement the copy on write
+        return;
 
 }
