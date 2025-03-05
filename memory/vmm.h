@@ -3,7 +3,8 @@
 #define VMM_H
 
 #include "../std/stdint.h"
-#include <stdbool.h>
+#include "../std/stdbool.h"
+#include "pmm.h"
 
 // Page size
 #define PAGE_SIZE           4096    // 4 KB
@@ -32,7 +33,7 @@
 typedef uint32_t page_entry_t;
 
 typedef struct {
-    page_entry_t entries[ENTRIES_PER_TABLE];
+    page_entry_t entries[TABLES_PER_DIR];
 } __attribute__((aligned(PAGE_SIZE))) page_table_t;
 
 
@@ -58,7 +59,7 @@ typedef struct {
     page_entry_t entries[ENTRIES_PER_TABLE];
 } __attribute__((aligned(PAGE_SIZE))) page_directory_t;
 
-#define PAGE_DIR_SIZE 1024
+#define TABLES_PER_DIR 1024
 #define PAGE_TABLE_SIZE 1024
 #define PRESENT 0x1 // page present in memory
 #define PAGE_WRITEABLE 0x2// page is writeable
@@ -71,7 +72,9 @@ typedef struct {
 #define GLOBAL 0x100 // global page. TLB entries are not invalidated on CR3 writes
 #define SWAPPED 0x200 // page is swapped
 #define EMPTY_USER_PAGE_DIR_FLAGS (PAGE_WRITEABLE | PAGE_USER)
-#define EMPTY_KERNEL_PAGE_DIR_FLAGS (PAGE_WRITEABLE)
+#define EMPTY_KERNEL_PAGE_FLAGS (PAGE_WRITEABLE)
+
+
 
 #define KERNEL_START_DIRECTORY_INDEX 768
 
@@ -115,4 +118,5 @@ inline bool is_table_present(page_table_t *entry)
 void vmm_init();
 void vmm_switch_page_directory(page_directory_t *dir);
 
+void vmm_map_page(void *vir_addr, physical_addr frame_addr, uint32_t flags);
 #endif // VMM_H
