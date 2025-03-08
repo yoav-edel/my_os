@@ -7,6 +7,9 @@
 #include "../drivers/screen.h"
 #include "../std/stdlib.h"
 #include "../drivers/keyboard.h"
+#include "../memory/vmm.h"
+
+#define PAGE_FAULT_ISR 14
 const char *exception_messages[] = {
         "Division By Zero",
         "Debug",
@@ -70,6 +73,8 @@ void isr_handler(registers_t *regs) {
     else if(regs->int_no == KEYBOARD_ISR)
     {
         keyboard_handler();
+    } else if (regs->int_no == PAGE_FAULT_ISR) {
+        page_fault_handler(regs->err_code);
     }
     else
     {

@@ -16,7 +16,7 @@ static struct {
 } last_free_frame = {-1, -1};
 
 // Track the last allocated index for next-fit strategy
-static size_t last_alloc_index = 0;
+static size_t last_alloc_index = 1;
 
 // Macros for bitmap operations
 #define BIT_MASK(offset) (1 << (offset))
@@ -58,9 +58,14 @@ void pmm_init() {
     }
 
     // Reserve memory for kernel and hardware
-    for (physical_addr addr = 0; addr < KERNEL_RESERVED_MEMORY; addr += PMM_BLOCK_SIZE) {
-        pmm_mark_used(addr);
-    }
+    extern char _kernel_start, _kernel_end;
+    size_t kernel_size = (size_t) (&_kernel_end - &_kernel_start);
+//    size_t kernel_frames = (kernel_size + PMM_BLOCK_SIZE - 1) / PMM_BLOCK_SIZE;
+    size_t kernel_frames = 2048;
+    _kernel_start = 0;
+    for (size_t i = 0; i < kernel_frames; i++)
+        pmm_mark_used((physical_addr) &_kernel_start + i * PMM_BLOCK_SIZE);
+
 }
 
 // Allocate a single frame using next-fit strategy
@@ -89,7 +94,7 @@ physical_addr pmm_alloc_frame() {
     }
 
     // Wrap around and continue searching from the beginning
-    for (size_t i = 0; i < last_alloc_index; i++) {
+    for (size_t i = 1; i < last_alloc_index; i++) {
         if (!is_full(i)) {
             for (uint8_t j = 0; j < 8; j++) {
                 if (!(pmm_bitmap[i] & BIT_MASK(j))) {

@@ -25,6 +25,61 @@ static identifyDeviceData disk4 = {0};
 
 static identifyDeviceData *disks[4] = {&disk1, &disk2, &disk3, &disk4};
 
+#define DISK_BITMAP_SIZE 100000 //todo change this to be dynamic with kmalloc and the size in the disks
+static uint8_t disk_bitmap[DISK_BITMAP_SIZE] = {0};
+
+
+inline static bool disk_is_free(disk_addr slot) {
+    return disk_bitmap[slot] == 0;
+}
+
+inline static void disk_mark_used(disk_addr slot) {
+    disk_bitmap[slot] = 1;
+}
+
+// allocate via next fit algorithm
+static size_t last_alloc_index = 0;
+
+disk_addr disk_alloc_slot() {
+
+    // Next-fit search: from last_alloc_index to the end
+    for (size_t i = last_alloc_index; i < DISK_BITMAP_SIZE; i++) {
+        for (uint8_t j = 0; j < 8; j++) {
+            if (!(disk_bitmap[i] & (1 << j))) {
+                disk_bitmap[i] |= (1 << j);
+                last_alloc_index = i;
+                return i * 8 + j;
+            }
+        }
+    }
+
+    // Wrap-around search: from beginning to last_alloc_index
+    for (size_t i = 0; i < last_alloc_index; i++) {
+        if (disk_is_free(i)) {
+            disk_mark_used(i);
+            last_alloc_index = i;
+            return i;
+        }
+    }
+
+    // No free disk slots available
+    return DISK_NO_SLOT_AVAILABLE;
+}
+
+
+inline static void disk_mark_free(disk_addr slot) {
+    disk_bitmap[slot / 8] = disk_bitmap[slot / 8] & ~(1 << (slot % 8));
+}
+
+/*
+ * Free a previously allocated disk slot.
+ * Marks the slot as free in the bitmap and updates the last_free_slot.
+ */
+void disk_free_slot(disk_addr slot) {
+    disk_mark_free(slot);
+}
+
+
 /*
  * The following functions are used to extract the LBA address into its components.
  * The lba address is 24 bits long and is divided into 4 parts:
@@ -141,7 +196,7 @@ inline static void flush_cache(uint16_t base_port) {
 }
 
 
-uint32_t parse_logical_sector_size(uint16_t *identify_data) {
+uint32_t parse_logical_sector_size(const uint16_t *identify_data) {
     // Word 106 - Physical/Logical Sector Size Information
     uint16_t word_106 = identify_data[106];
 
@@ -499,7 +554,7 @@ void switch_disk(uint8_t num) {
  * Returns the number of bytes read on success (which will be len if no errors occur),
  * or 0 if an error is encountered.
  */
-size_t disk_read(disk_addr addr, size_t len, void *buffer) {
+size_t disk_read(disk_addr addr, const void *buffer, size_t len) {
     size_t total_read = 0;
 
     /* Get disk info for current disk (curr_disk is assumed global) */
@@ -554,7 +609,7 @@ size_t disk_read(disk_addr addr, size_t len, void *buffer) {
  *
  */
 
-size_t disk_write(disk_addr addr, size_t len, const void *buffer) {
+size_t disk_write(disk_addr addr, const void *buffer, size_t len) {
     size_t total_written = 0;
 
     /* Get disk info for current disk (curr_disk is assumed global) */
@@ -563,8 +618,7 @@ size_t disk_write(disk_addr addr, size_t len, const void *buffer) {
         return 0;
 
     size_t sector_size = disk->logical_sector_size;
-    /* Calculate the number of sectors needed to cover len bytes (rounding up) */
-    size_t total_sectors = (len + sector_size - 1) / sector_size;
+    size_t total_sectors = len / sector_size;
 
     /* Temporary buffer to hold one sector's data */
     uint8_t temp_buffer[sector_size * MAX_SECTORS_PER_CALL];
@@ -592,6 +646,16 @@ size_t disk_write(disk_addr addr, size_t len, const void *buffer) {
         addr += sectors_this_call;
     }
 
-    return total_written;
+    if (len % disk->logical_sector_size) {
+        // the last sector is not full so need to read it and write it back to make sure we dont overwrite data
+        disk_addr last_sector = addr;
+        uint8_t temp_buffer[disk->logical_sector_size];
+        if (!ata_read_sectors(curr_disk, last_sector, 1, temp_buffer))
+            return total_written;
+        memcpy(temp_buffer, (uint8_t *) buffer + total_written, len % disk->logical_sector_size);
+        if (!ata_write_sectors(curr_disk, last_sector, 1, temp_buffer))
+            return total_written;
+    }
+    return len;
 }
 

@@ -13,7 +13,13 @@
 #include "../std/assert.h"
 #include "pmm.h"
 #include "../errors.h"
+#include "vmm.h"
 
+
+#define MIN_NUM_HEAPS 4
+// this values represents the start of the kernel heap address
+#define KERNEL_BASE_HEAP_ADDR 12324234234 // todo change this to a real address
+const int MIN_SIZE = 16;
 
 struct slab {
     size_t object_size;      // Size of objects in this slab
@@ -29,6 +35,7 @@ struct cache {
     struct slab *slabs;      // Linked list of slabs
 };
 
+
 #define NUM_CACHES 8
 #define MAX_CACHE_SIZE 2048
 static struct cache caches[NUM_CACHES] = {
@@ -43,10 +50,12 @@ static struct cache caches[NUM_CACHES] = {
 };
 
 
+static void *convert_to_vir_addr(physical_addr addr) {
+    return (void *) (addr + KERNEL_BASE_HEAP_ADDR);
+}
 
 
-
-void init_slab(struct slab *slab, size_t object_size) {
+static void init_slab(struct slab *slab, size_t object_size) {
     size_t available_size = sizeof(slab->data);
     size_t num_objects = available_size / object_size;
     slab->free_count = num_objects;
@@ -78,10 +87,13 @@ void slab_free(struct slab *slab, void *object){
 }
 
 struct slab *create_slab(size_t object_size){
-    struct slab *slab = (void *)pmm_alloc_frame();
-    if (slab == NULL){
+    physical_addr slab_phys_addr = pmm_alloc_frame();
+    if (slab_phys_addr == PMM_NO_FRAME_AVAILABLE)
         return NULL;
-    }
+    void *slab_vir_addr = convert_to_vir_addr(slab_phys_addr);
+    vmm_map_page(slab_vir_addr, slab_phys_addr, PAGE_WRITEABLE);
+
+    struct slab *slab = (struct slab *) slab_vir_addr;
     slab->object_size = object_size;
     slab->offset = 0;
     slab->next = NULL;
@@ -124,24 +136,30 @@ static size_t get_slab_index(size_t size)
 void* alloc_from_cache(struct cache* cache)
 {
     struct slab* curr_slab = cache->slabs;
-    if(curr_slab == NULL)
+    struct slab *new_slab;  // Declaration moved to the top.
+
+    if (curr_slab == NULL)
         goto failed_alloc_from_cache_create_new_slab;
-    while(curr_slab != NULL)
+    while (curr_slab != NULL)
     {
         void *res = alloc_from_slab(curr_slab);
-        if(res != NULL)
+        if (res != NULL)
             return res;
         curr_slab = curr_slab->next;
     }
 
-    //Failed to allocate, allocate new slab
     failed_alloc_from_cache_create_new_slab:
-    struct slab* new_slab = create_slab(cache->object_size);
+    // Failed to allocate, so allocate a new slab.
+    new_slab = create_slab(cache->object_size);
+    if (new_slab == NULL)  // Check if slab creation failed.
+        return NULL;
     new_slab->next = cache->slabs;
     cache->slabs = new_slab;
     return alloc_from_slab(new_slab);
 }
 
+
+// todo handle large allocations requests
 static void* _kamlloc_large(size_t size)
 {
     return NULL;
@@ -158,4 +176,10 @@ void* kmalloc(size_t size)
         panic("Cache for slab was not found, how tf did we get here?");
     }
     return alloc_from_cache(cache);
+}
+
+void kfree(void *ptr) {
+    //Lets hope that ptr is actually a valid address :)
+    struct slab *slab = (struct slab *) ((size_t) ptr & ~(PMM_BLOCK_SIZE - 1));
+    slab_free(slab, ptr);
 }

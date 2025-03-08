@@ -15,6 +15,7 @@ typedef __INT32_TYPE__ int32_t;
 typedef __UINT32_TYPE__ uint32_t;
 typedef __INT64_TYPE__ int64_t;
 typedef __UINT64_TYPE__ uint64_t;
+#define NULL ((void *)0)
 
 typedef __SIZE_TYPE__ size_t;
 #endif //MYKERNELPROJECT_STDINT_H

@@ -18,6 +18,7 @@ DRIVERS_DIR = drivers
 BUILD_DIR = build
 ISO_DIR = iso/boot
 GRUB_DIR = $(ISO_DIR)/grub
+MEMORY_DIR = memory
 
 # Files
 ASM_FILES = $(SRC_DIR)multiboot.asm $(SRC_DIR)start.asm $(INTERRUPTS_DIR)/isr_stubs.asm
@@ -31,16 +32,24 @@ C_FILES = $(SRC_DIR)kernel.c \
           $(INTERRUPTS_DIR)/pic.c \
           $(INTERRUPTS_DIR)/idt.c \
           $(INTERRUPTS_DIR)/interupts_handler.c \
-          $(SRC_DIR)gdt.c
+          $(SRC_DIR)gdt.c \
+          $(DRIVERS_DIR)/disk.c \
+          $(MEMORY_DIR)/utills.c \
+          $(MEMORY_DIR)/vmm.c \
+          $(MEMORY_DIR)/pmm.c \
+          $(MEMORY_DIR)/kmalloc.c \
+          $(SRC_DIR)/errors.c
+
 OBJS = $(ASM_FILES:.asm=.o) $(C_FILES:.c=.o)
 
 # Output
 KERNEL = kernel.bin
 ISO = kernel.iso
+DISK_IMG = disk.img
 
-.PHONY: all clean run debug
+.PHONY: all clean run debug create-disk
 
-all: $(ISO)
+all: $(ISO) $(DISK_IMG)
 
 # Compile assembly files
 %.o: %.asm
@@ -66,17 +75,25 @@ $(ISO): $(KERNEL)
 	@echo "}" >> $(GRUB_DIR)/grub.cfg
 	grub-mkrescue -o $@ iso
 
+# Create a raw disk image
+$(DISK_IMG):
+	qemu-img create -f raw $(DISK_IMG) 64M
+
 # Clean build artifacts
 clean:
 	find . -name "*.o" -type f -delete
-	rm -f $(KERNEL) $(ISO)
+	rm -f $(KERNEL) $(ISO) $(DISK_IMG)
 	rm -rf $(ISO_DIR)
 	rm -rf $(GRUB_DIR)
 
-# Run the kernel in QEMU
-run: $(ISO)
-	qemu-system-i386 -cdrom $(ISO)
+# Run the kernel in QEMU with ATA PIO mode
+run: $(ISO) $(DISK_IMG)
+	qemu-system-i386 -cdrom kernel.iso -drive file=disk.img,format=raw,if=ide,index=0,media=disk -serial stdio
 
-# Debug the kernel in QEMU
-debug: $(ISO)
-	qemu-system-i386 -s -S -cdrom $(ISO)
+# Debug the kernel in QEMU with ATA PIO mode
+debug: $(ISO) $(DISK_IMG)
+	# Start QEMU in debugging mode (listening on port 1234)
+	qemu-system-i386 -s -S -cdrom kernel.iso -drive file=disk.img,format=raw,if=ide,index=0,media=disk -serial stdio &
+	# Open a new Windows console window that runs WSL bash to change directory and start GDB
+	cmd.exe /C start bash -c "cd $(ISO_DIR) && gdb kernel.bin -ex 'target remote :1234'"
+

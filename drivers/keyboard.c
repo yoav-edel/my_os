@@ -51,8 +51,7 @@ void handle_scancode(uint8_t scancode)
     }
     else // key was pressed
     {
-        //todo add more special keys like caps lock
-        // Handle the key press
+
         if(scancode == SHIFT_KEY)
             shift_pressed = true;
         else if(scancode == CAPS_LOCK)
