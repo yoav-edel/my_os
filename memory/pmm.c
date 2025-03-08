@@ -60,11 +60,15 @@ void pmm_init() {
     // Reserve memory for kernel and hardware
     extern char _kernel_start, _kernel_end;
     size_t kernel_size = (size_t) (&_kernel_end - &_kernel_start);
-//    size_t kernel_frames = (kernel_size + PMM_BLOCK_SIZE - 1) / PMM_BLOCK_SIZE;
-    size_t kernel_frames = 2048;
-    _kernel_start = 0;
+    size_t kernel_frames = (kernel_size + PMM_BLOCK_SIZE - 1) / PMM_BLOCK_SIZE;
     for (size_t i = 0; i < kernel_frames; i++)
         pmm_mark_used((physical_addr) &_kernel_start + i * PMM_BLOCK_SIZE);
+
+    // map Kernel stack
+    extern const unsigned int _kernel_stack_top, _kernel_stack_pages_amount;
+
+    for (size_t i = 0; i < _kernel_stack_pages_amount; i++)
+        pmm_mark_used((physical_addr) &_kernel_stack_top - i * PMM_BLOCK_SIZE);
 
 }
 
