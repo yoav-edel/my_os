@@ -4,12 +4,7 @@
 
 #ifndef MYKERNELPROJECT_ERRORS_H
 #define MYKERNELPROJECT_ERRORS_H
-#include "drivers/screen.h"
-inline void panic(const char *msg)
-{
-    put_string("Kernel Panic: ");
-    put_string(msg);
-    while(1);
 
-}
+void panic(const char *msg);
+
 #endif //MYKERNELPROJECT_ERRORS_H

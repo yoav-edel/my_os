@@ -18,4 +18,7 @@
 
 void int_to_string(int num, char *str);
 
+int atoi(const char *str);
+
+
 #endif //MYKERNELPROJECT_STDLIB_H

@@ -33,7 +33,7 @@
 typedef uint32_t page_entry_t;
 
 typedef struct {
-    page_entry_t entries[TABLES_PER_DIR];
+    page_entry_t entries[ENTRIES_PER_TABLE];
 } __attribute__((aligned(PAGE_SIZE))) page_table_t;
 
 
@@ -72,51 +72,16 @@ typedef struct {
 #define GLOBAL 0x100 // global page. TLB entries are not invalidated on CR3 writes
 #define SWAPPED 0x200 // page is swapped
 #define EMPTY_USER_PAGE_DIR_FLAGS (PAGE_WRITEABLE | PAGE_USER)
-#define EMPTY_KERNEL_PAGE_FLAGS (PAGE_WRITEABLE)
+#define KERNEL_PAGE_FLAGS (PAGE_WRITEABLE)
 
 
 
-#define KERNEL_START_DIRECTORY_INDEX 768
-
-inline uint32_t get_directory_index(void *vir_addr)
-{
-    return (uint32_t)(vir_addr) >> 22;
-}
-
-inline uint32_t get_table_index(void *vir_addr)
-{
-    return ((uint32_t)(vir_addr) >> 12 )& 0x03FF;
-}
-
-inline uint32_t get_page_table_addr(page_directory_t *dir, uint32_t pd_index)
-{
-    // the address is the 20 most significant bits of the entry
-    return dir->entries[pd_index] & 0xFFFFF000;
-}
-
-inline uint32_t get_frame_addr(page_entry_t *entry)
-{
-    return *entry & 0xFFFFF000;
-}
-
-
-
-inline bool is_page_present(page_entry_t *entry)
-{
-    return *entry & PRESENT;
-}
-
-
-
-inline bool is_table_present(page_table_t *entry)
-{
-    return *entry & PRESENT;
-}
 
 
 
 void vmm_init();
 void vmm_switch_page_directory(page_directory_t *dir);
 
+void page_fault_handler(uint32_t error_code);
 void vmm_map_page(void *vir_addr, physical_addr frame_addr, uint32_t flags);
 #endif // VMM_H
