@@ -17,9 +17,10 @@
 
 
 #define MIN_NUM_HEAPS 4
+uint32_t KERNEL_BASE_HEAP_ADDR;
+static uint32_t current_heap_addr = 0;
 // this values represents the start of the kernel heap address
-#define KERNEL_BASE_HEAP_ADDR 12324234234 // todo change this to a real address
-const int MIN_SIZE = 16;
+static const int MIN_SIZE = 16;
 
 struct slab {
     size_t object_size;      // Size of objects in this slab
@@ -36,8 +37,7 @@ struct cache {
 };
 
 
-#define NUM_CACHES 8
-#define MAX_CACHE_SIZE 2048
+
 static struct cache caches[NUM_CACHES] = {
         {16, NULL},
         {32, NULL},
@@ -87,9 +87,10 @@ void slab_free(struct slab *slab, void *object){
 }
 
 struct slab *create_slab(size_t object_size){
-    physical_addr slab_phys_addr = pmm_alloc_frame();
-    if (slab_phys_addr == PMM_NO_FRAME_AVAILABLE)
-        return NULL;
+    assert(current_heap_addr < KERNEL_BASE_HEAP_ADDR + KERNEL_HEAP_SIZE);
+    //todo handle alocation of not continous memory
+    physical_addr slab_phys_addr = current_heap_addr;
+    current_heap_addr += PMM_BLOCK_SIZE;
     void *slab_vir_addr = convert_to_vir_addr(slab_phys_addr);
     vmm_map_page(slab_vir_addr, slab_phys_addr, PAGE_WRITEABLE);
 
@@ -108,17 +109,6 @@ static struct cache *get_cache(size_t size) {
         }
     }
     return NULL;
-}
-
-
-void init_kmalloc(){
-    for (size_t i = 0; i < NUM_CACHES; i++){
-        caches[i].slabs = create_slab(caches[i].object_size);
-        if(caches[i].slabs == NULL){
-            panic("Failed to allocate memory for kmalloc, what piece of shit computer do you have?\n"
-                  "Its probably my fault :)");
-        }
-    }
 }
 
 static size_t get_slab_index(size_t size)
@@ -182,4 +172,17 @@ void kfree(void *ptr) {
     //Lets hope that ptr is actually a valid address :)
     struct slab *slab = (struct slab *) ((size_t) ptr & ~(PMM_BLOCK_SIZE - 1));
     slab_free(slab, ptr);
+}
+
+
+void init_kmalloc() {
+    // The heap is already mapped in the vmm_init function
+    current_heap_addr = KERNEL_BASE_HEAP_ADDR;
+    for (size_t i = 0; i < NUM_CACHES; i++) {
+        caches[i].slabs = create_slab(caches[i].object_size);
+        if (caches[i].slabs == NULL) {
+            panic("Failed to allocate memory for kmalloc, what piece of shit computer do you have?\n"
+                  "Its probably my fault :)");
+        }
+    }
 }

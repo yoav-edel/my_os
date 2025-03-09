@@ -59,7 +59,7 @@ typedef struct {
 #define KERNEL_PAGE_FLAGS (PAGE_WRITEABLE)
 
 
-
+#define ALIGN_TO_PAGE(addr) ((addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1))
 
 
 

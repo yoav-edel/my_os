@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "../std/assert.h"
 #include "pmm.h"
+#include "kmalloc.h"
 
 // Bitmap for tracking used and free frames
 static uint8_t pmm_bitmap[PMM_BITMAP_SIZE] = {0};
@@ -50,27 +51,7 @@ static inline bool is_full(size_t index) {
     return pmm_bitmap[index] == 0xFF;
 }
 
-// Initialize the Physical Memory Manager
-void pmm_init() {
-    // Initialize the bitmap (mark all frames as free)
-    for (size_t i = 0; i < PMM_BITMAP_SIZE; i++) {
-        pmm_bitmap[i] = 0;
-    }
 
-    // Reserve memory for kernel and hardware
-    extern char _kernel_start, _kernel_end;
-    size_t kernel_size = (size_t) (&_kernel_end - &_kernel_start);
-    size_t kernel_frames = (kernel_size + PMM_BLOCK_SIZE - 1) / PMM_BLOCK_SIZE;
-    for (size_t i = 0; i < kernel_frames; i++)
-        pmm_mark_used((physical_addr) &_kernel_start + i * PMM_BLOCK_SIZE);
-
-    // map Kernel stack
-    extern const unsigned int _kernel_stack_top, _kernel_stack_pages_amount;
-
-    for (size_t i = 0; i < _kernel_stack_pages_amount; i++)
-        pmm_mark_used((physical_addr) &_kernel_stack_top - i * PMM_BLOCK_SIZE);
-
-}
 
 // Allocate a single frame using next-fit strategy
 physical_addr pmm_alloc_frame() {
@@ -128,3 +109,30 @@ bool pmm_is_frame_free(physical_addr frame_addr) {
     return !(pmm_bitmap[get_bitmap_index(frame_addr)] & BIT_MASK(get_bitmap_offset(frame_addr)));
 }
 
+// Initialize the Physical Memory Manager
+void pmm_init() {
+    // Initialize the bitmap (mark all frames as free)
+    for (size_t i = 0; i < PMM_BITMAP_SIZE; i++) {
+        pmm_bitmap[i] = 0;
+    }
+
+    // Reserve memory for kernel and hardware
+    extern char _kernel_start, _kernel_end;
+    size_t kernel_size = (size_t) (&_kernel_end - &_kernel_start);
+    size_t kernel_frames = (kernel_size + PMM_BLOCK_SIZE - 1) / PMM_BLOCK_SIZE;
+    for (size_t i = 0; i < kernel_frames; i++)
+        pmm_mark_used((physical_addr) &_kernel_start + i * PMM_BLOCK_SIZE);
+
+    // map Kernel stack
+    extern const unsigned int _kernel_stack_top, _kernel_stack_pages_amount;
+
+    for (size_t i = 0; i < _kernel_stack_pages_amount; i++)
+        pmm_mark_used((physical_addr) &_kernel_stack_top - i * PMM_BLOCK_SIZE);
+
+    // Map heap address
+    KERNEL_BASE_HEAP_ADDR = ALIGNED_TO_PHYSICAL_PAGE((uint32_t) &_kernel_stack_top);
+    size_t num_pages = KERNEL_HEAP_SIZE / PMM_BLOCK_SIZE;
+    for (size_t i = 0; i < num_pages; i++) {
+        pmm_mark_used((physical_addr) (KERNEL_BASE_HEAP_ADDR + i * PMM_BLOCK_SIZE));
+    }
+}

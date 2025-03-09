@@ -218,9 +218,11 @@ bool vmm_swap_in_page(page_entry_t *e) {
     page_entry_remove_attrib(e, SWAPPED);
     return true;
 }
-
-
-bool vmm_alloc_page(page_entry_t *e) {
+/*
+ * Allocates a new page and maps it to a frame, and doeesnt add it to the pages that can be swapped.
+ * return true if the allocation was successful, false otherwise
+ */
+bool vmm_alloc_permanent_page(page_entry_t *e) {
     //allocate physical frame
     physical_addr frame_addr = pmm_alloc_frame();
     if (frame_addr == PMM_NO_FRAME_AVAILABLE) {
@@ -234,9 +236,23 @@ bool vmm_alloc_page(page_entry_t *e) {
     //map the frame to the page entry
     page_entry_set_frame(e, frame_addr);
     page_entry_add_attrib(e, PRESENT);
+    return true;
+}
+
+/*
+ * Allocates a new page and maps it to a frame and adds it to the page fifo queue
+ * return true if the allocation was successful, false otherwise
+ */
+bool vmm_alloc_page(page_entry_t *e) {
+
+    if (!vmm_alloc_permanent_page(e))
+        return false;
     page_fifo_node_t *node = (page_fifo_node_t *) kmalloc(sizeof(page_fifo_node_t));
-    if (node == NULL)
+    if (node == NULL) {
+        pmm_free_frame(get_frame_addr(*e));
+        page_entry_remove_attrib(e, PRESENT);
         return false; // todo handle the error
+    }
 
     node->entry = e;
     page_fifo_enqueue(node);
@@ -271,21 +287,16 @@ void vmm_map_page(void *vir_addr, physical_addr phys_addr, uint32_t flags) {
     {
         // If paging is not enabled, we can just allocate a new frame for the page table
         if (!paging_enabled) {
-            physical_addr phys_addr_page_table = pmm_alloc_frame();
-            if (phys_addr_page_table == PMM_NO_FRAME_AVAILABLE) {
-                if (!vmm_swap_out_some_page())
-                    panic("Failed to allocate a frame for the page table. how tf did we mange to get here?");
-                phys_addr_page_table = pmm_alloc_frame();
-            }
+            if (!vmm_alloc_permanent_page(&current_directory->tables[pd_index]))
+                panic("Failed to allocate a frame for the page table. how tf did we mange to get here?");
+            physical_addr phys_addr_page_table = get_frame_addr(current_directory->tables[pd_index]);
             memset((void *) phys_addr_page_table, 0, PAGE_SIZE);
-            page_entry_set_frame(&current_directory->tables[pd_index], phys_addr_page_table);
             page_entry_add_attrib(&current_directory->tables[pd_index], PRESENT | PAGE_WRITEABLE);
             page_table = (page_table_t *) phys_addr_page_table;
             //clear the page table (using the virtual address)
         }
             // If paging is enabled, we need to allocate a new frame virtual frame for the page table
         else {
-
 
         }
     }
@@ -383,9 +394,20 @@ void vmm_init() {
                      (physical_addr) (&_kernel_stack_top - i * PAGE_SIZE),
                      KERNEL_PAGE_FLAGS | PRESENT);
 
+    //Map heap address
+
+    KERNEL_BASE_HEAP_ADDR = ALIGN_TO_PAGE((uint32_t) &_kernel_stack_top);
+    size_t num_pages = KERNEL_HEAP_SIZE / PAGE_SIZE;
+    for (size_t i = 0; i < num_pages; i++) {
+        vmm_map_page((void *) (KERNEL_BASE_HEAP_ADDR + i * PAGE_SIZE),
+                     (physical_addr) (KERNEL_BASE_HEAP_ADDR + i * PAGE_SIZE),
+                     KERNEL_PAGE_FLAGS | PRESENT);
+    }
+
+
     // load the physical address of the kernel page directory
     load_page_dir((physical_addr) &kernel_directory);
     enable_paging();
-
+    vmm_swap_out_some_page();
 
 }
