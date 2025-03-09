@@ -104,6 +104,8 @@ void switch_disk(uint8_t disk_num);
 #define DISK_NO_SLOT_AVAILABLE 0
 disk_addr disk_alloc_slot();
 
+void disk_free_slot(disk_addr slot);
+
 size_t disk_write(disk_addr addr, const void *buffer, size_t len);
 
 size_t disk_read(disk_addr addr, const void *buffer, size_t len);
