@@ -4,7 +4,7 @@ section .text
 
 start:
     cli                         ; Clear interrupts
-    mov esp, _kernel_stack_top  ; Set stack pointer
+    mov esp, [_kernel_stack_top]  ; Set stack pointer
     call kernel_main            ; Jump to kernel main function
     hlt                         ; Halt CPU
 
