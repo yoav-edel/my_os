@@ -1,8 +1,9 @@
-OUTPUT_FORMAT(elf32-i386)
 ENTRY(start)
 SECTIONS
 {
   . = 0x00100000;
+
+  _kernel_start = .;
 
   .multiboot_header :
   {
@@ -24,4 +25,6 @@ SECTIONS
     *(.bss)
     *(COMMON)
   }
+
+  _kernel_end = .;
 }
