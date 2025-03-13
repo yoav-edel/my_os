@@ -148,8 +148,7 @@ void enable_paging() {
     asm volatile ("mov %%cr0, %0" : "=r"(cr0));
     cr0 |= 0x80000000; // Set the paging bit in cr0
     asm volatile ("mov %0, %%cr0"::"r"(cr0));
-    cr0 = 0;
-
+    paging_enabled = true;
 }
 
 
