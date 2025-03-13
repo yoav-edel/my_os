@@ -10,7 +10,6 @@
 #include "../drivers/disk.h"
 #include "kmalloc.h"
 #include "../gdt.h"
-
 #include "../drivers/screen.h"
 
 
@@ -390,13 +389,13 @@ void vmm_init() {
 
     // map Kernel stack
     for (size_t i = 0; i < _kernel_stack_pages_amount; i++)
-        vmm_map_page((void *) (&_kernel_stack_top - i * PAGE_SIZE),
-                     (physical_addr) (&_kernel_stack_top - i * PAGE_SIZE),
+        vmm_map_page((void *) (_kernel_stack_top - i * PAGE_SIZE),
+                     (physical_addr) (_kernel_stack_top - i * PAGE_SIZE),
                      KERNEL_PAGE_FLAGS | PRESENT);
 
     //Map heap address
 
-    KERNEL_BASE_HEAP_ADDR = ALIGN_TO_PAGE((uint32_t) &_kernel_stack_top);
+    KERNEL_BASE_HEAP_ADDR = ALIGN_TO_PAGE((uint32_t) _kernel_stack_top);
     size_t num_pages = KERNEL_HEAP_SIZE / PAGE_SIZE;
     for (size_t i = 0; i < num_pages; i++) {
         vmm_map_page((void *) (KERNEL_BASE_HEAP_ADDR + i * PAGE_SIZE),
@@ -404,10 +403,10 @@ void vmm_init() {
                      KERNEL_PAGE_FLAGS | PRESENT);
     }
 
+    //Map the VGA buffer
+    vmm_map_page((void *) VGA_ADDRESS, (physical_addr) VGA_ADDRESS, KERNEL_PAGE_FLAGS | PRESENT);
 
     // load the physical address of the kernel page directory
     load_page_dir((physical_addr) &kernel_directory);
     enable_paging();
-    vmm_swap_out_some_page();
-
 }
