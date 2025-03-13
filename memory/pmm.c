@@ -6,6 +6,7 @@
 #include "../std/assert.h"
 #include "pmm.h"
 #include "kmalloc.h"
+#include "../drivers/screen.h"
 
 // Bitmap for tracking used and free frames
 static uint8_t pmm_bitmap[PMM_BITMAP_SIZE] = {0};
@@ -135,4 +136,7 @@ void pmm_init() {
     for (size_t i = 0; i < num_pages; i++) {
         pmm_mark_used((physical_addr) (KERNEL_BASE_HEAP_ADDR + i * PMM_BLOCK_SIZE));
     }
+
+    // Map the VGA buffer
+    pmm_mark_used(VGA_ADDRESS);
 }

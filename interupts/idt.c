@@ -19,9 +19,9 @@ struct idt_ptr {
 } __attribute__((packed));
 
 #define IDT_ENTRIES 256
-struct idt_entry idt[IDT_ENTRIES];
+static struct idt_entry idt[IDT_ENTRIES];
 
-struct idt_ptr idtPtr;
+static struct idt_ptr idtPtr;
 
 void init_idt() {
     init_idt_entries();
