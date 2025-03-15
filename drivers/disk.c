@@ -38,7 +38,7 @@ inline static void disk_mark_used(disk_addr slot) {
 }
 
 // allocate via next fit algorithm
-static size_t last_alloc_index = 0;
+static size_t last_alloc_index = 1;
 
 disk_addr disk_alloc_slot() {
 
@@ -54,7 +54,7 @@ disk_addr disk_alloc_slot() {
     }
 
     // Wrap-around search: from beginning to last_alloc_index
-    for (size_t i = 0; i < last_alloc_index; i++) {
+    for (size_t i = 1; i < last_alloc_index; i++) {
         if (disk_is_free(i)) {
             disk_mark_used(i);
             last_alloc_index = i;
@@ -622,7 +622,6 @@ size_t disk_write(disk_addr addr, const void *buffer, size_t len) {
 
     /* Temporary buffer to hold one sector's data */
     uint8_t temp_buffer[sector_size * MAX_SECTORS_PER_CALL];
-
     while (total_sectors > 0) {
         uint8_t sectors_this_call;
         if (total_sectors >= MAX_SECTORS_PER_CALL)
