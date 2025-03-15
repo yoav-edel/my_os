@@ -9,7 +9,6 @@
 #include "../errors.h"
 #include "../drivers/disk.h"
 #include "kmalloc.h"
-#include "../gdt.h"
 #include "../drivers/screen.h"
 
 
@@ -19,7 +18,7 @@ static page_directory_t kernel_directory = {0};
 static bool paging_enabled = false;
 
 typedef struct page_fifo_node {
-    page_entry_t *entry;
+    void *vir_addr;
     struct page_fifo_node *next;
 } page_fifo_node_t;
 
@@ -31,6 +30,8 @@ typedef struct {
 
 static page_fifo_queue_t current_page_fifo_queue = {NULL, NULL, 0};
 
+static page_entry_t *vmm_get_page_entry(void *vir_addr);
+
 // ---------------------------- Helper functions ----------------------------
 
 static inline uint32_t get_directory_index(void *vir_addr) {
@@ -41,14 +42,22 @@ static inline uint32_t get_table_index(void *vir_addr) {
     return ((uint32_t) (vir_addr) >> 12) & 0x03FF;
 }
 
-static inline uint32_t get_page_table_addr(const page_directory_t *dir, uint32_t pd_index) {
-    // the address is the 20 most significant bits of the entry
-    return (dir->tables[pd_index]) & 0xFFFFF000;
+// This function can only be used if paging is enabled because it returns the virtual address of the page table
+static inline uint32_t get_page_table_vir_addr(const page_directory_t *dir, uint16_t pd_index) {
+    return (RECURSIVE_PAGE_TABLE_INDEX << 22) | (pd_index << 12);
 }
 
 static inline uint32_t get_frame_addr(const page_entry_t entry) {
     return entry & 0xFFFFF000;
 }
+
+static inline uint32_t get_page_table_addr(const page_directory_t *dir, uint16_t pd_index) {
+    if (paging_enabled) //Todo add that this is the likely case
+        return get_page_table_vir_addr(dir, pd_index);
+    else
+        return get_frame_addr(dir->tables[pd_index]);
+}
+
 
 
 static inline bool is_page_present(const page_entry_t entry) {
@@ -100,6 +109,10 @@ static inline void flush_tlb() {
     asm volatile ("mov %0, %%cr3"::"r"(cr3));
 }
 
+static inline void flush_page(uint32_t vir_addr) {
+    asm volatile ("invlpg (%0)"::"r"(vir_addr) : "memory");
+}
+
 // ---------------------------- Page FIFO Algorithm ----------------------------
 
 
@@ -113,13 +126,26 @@ static void page_fifo_enqueue(page_fifo_node_t *node) {
     current_page_fifo_queue.count++;
 }
 
-static page_entry_t *page_fifo_dequeue() {
+static bool page_enqueue(void *vir_addr) {
+    page_fifo_node_t *node = (page_fifo_node_t *) kmalloc(sizeof(page_fifo_node_t));
+    if (node == NULL)
+        return false;
+
+    node->vir_addr = vir_addr;
+    node->next = NULL;
+    page_fifo_enqueue(node);
+    return true;
+}
+
+static void *page_fifo_dequeue() {
     if (current_page_fifo_queue.head == NULL)
         return NULL;
     page_fifo_node_t *node = current_page_fifo_queue.head;
     current_page_fifo_queue.head = current_page_fifo_queue.head->next;
     current_page_fifo_queue.count--;
-    return node->entry;
+    void *vir_addr = node->vir_addr;
+    kfree(node);
+    return vir_addr;
 }
 
 
@@ -161,17 +187,15 @@ void enable_paging() {
 
 
 // return the page to swap out if there is no page to swap out return NULL
-page_entry_t *vmm_get_page_to_swap_out() {
+static void *vmm_get_page_to_swap_out() {
     return page_fifo_dequeue();
 }
 
-
-bool vmm_swap_out_some_page() {
-    page_entry_t *e = vmm_get_page_to_swap_out();
-    if (e == NULL)
+bool vmm_swap_out_page(void *vir_addr) {
+    page_entry_t *e = vmm_get_page_entry(vir_addr);
+    if (!is_page_present(*e))
         return false;
 
-    //swap out the page
     uint32_t disk_slot = disk_alloc_slot();
     if (disk_slot == NO_SLOT_AVAILABLE)
         return false;
@@ -184,8 +208,17 @@ bool vmm_swap_out_some_page() {
     page_entry_add_attrib(e, SWAPPED);
     page_entry_remove_attrib(e, PRESENT);
     page_entry_set_frame(e, disk_slot);
+    flush_page((uint32_t) vir_addr);
 
     return true;
+}
+
+
+bool vmm_swap_out_some_page() {
+    void *vir_addr = vmm_get_page_to_swap_out();
+    if (vir_addr == NULL)
+        return false;
+    return vmm_swap_out_page(vir_addr);
 }
 
 
@@ -194,7 +227,7 @@ bool vmm_swap_out_some_page() {
  * Swaps in a page from the disk
  * return true if the swap was successful, false otherwise
  */
-bool vmm_swap_in_page(page_entry_t *e) {
+bool vmm_swap_in_page(page_entry_t *e, uint32_t vir_addr) {
     physical_addr frame_addr = pmm_alloc_frame();
     if (frame_addr == PMM_NO_FRAME_AVAILABLE) {
         if (!vmm_swap_out_some_page())
@@ -214,10 +247,11 @@ bool vmm_swap_in_page(page_entry_t *e) {
     // add the present attribute and remove the swapped attribute
     page_entry_add_attrib(e, PRESENT);
     page_entry_remove_attrib(e, SWAPPED);
+    flush_page(vir_addr);
     return true;
 }
 /*
- * Allocates a new page and maps it to a frame, and doeesnt add it to the pages that can be swapped.
+ * Allocates a new page and maps it to a frame, and doeesnt add it to the pages that can't be swapped.
  * return true if the allocation was successful, false otherwise
  */
 bool vmm_alloc_permanent_page(page_entry_t *e) {
@@ -241,19 +275,17 @@ bool vmm_alloc_permanent_page(page_entry_t *e) {
  * Allocates a new page and maps it to a frame and adds it to the page fifo queue
  * return true if the allocation was successful, false otherwise
  */
-bool vmm_alloc_page(page_entry_t *e) {
+bool vmm_alloc_page(page_entry_t *e, void *vir_addr) {
 
     if (!vmm_alloc_permanent_page(e))
         return false;
-    page_fifo_node_t *node = (page_fifo_node_t *) kmalloc(sizeof(page_fifo_node_t));
-    if (node == NULL) {
+
+    if (!page_enqueue(vir_addr)) {
         pmm_free_frame(get_frame_addr(*e));
         page_entry_remove_attrib(e, PRESENT);
         return false; // todo handle the error
     }
 
-    node->entry = e;
-    page_fifo_enqueue(node);
     return true;
 }
 
@@ -278,25 +310,27 @@ void vmm_map_page(void *vir_addr, physical_addr phys_addr, uint32_t flags) {
 
     else if (is_swapped(current_directory->tables[pd_index])) // the table is exist but swapped
     {
-        if (!vmm_swap_in_page(&current_directory->tables[pd_index]))
+        if (!vmm_swap_in_page(&current_directory->tables[pd_index],
+                              get_page_table_vir_addr(current_directory, pd_index)))
             panic("Failed to swap in page. how tf did we mange to get here?");
         page_table = (page_table_t *) get_page_table_addr(current_directory, pd_index);
     } else // the table does not exist. create a new one
     {
-        // If paging is not enabled, we can just allocate a new frame for the page table
         if (!paging_enabled) {
             if (!vmm_alloc_permanent_page(&current_directory->tables[pd_index]))
-                panic("Failed to allocate a frame for the page table. how tf did we mange to get here?");
-            physical_addr phys_addr_page_table = get_frame_addr(current_directory->tables[pd_index]);
-            memset((void *) phys_addr_page_table, 0, PAGE_SIZE);
-            page_entry_add_attrib(&current_directory->tables[pd_index], PRESENT | PAGE_WRITEABLE);
-            page_table = (page_table_t *) phys_addr_page_table;
-            //clear the page table (using the virtual address)
+                panic("Failed to allocate a frame for the page table. We fucked up?");
         }
-            // If paging is enabled, we need to allocate a new frame virtual frame for the page table
         else {
-
+            if (!vmm_alloc_page(&current_directory->tables[pd_index],
+                                (void *) get_page_table_vir_addr(current_directory, pd_index)))
+                panic("Failed to allocate a frame for the page table. We fucked up?");
         }
+        //needs to clear the page table
+        page_entry_add_attrib(&current_directory->tables[pd_index], PAGE_WRITEABLE);
+        page_table = (page_table_t *) get_page_table_addr(current_directory, pd_index);
+        flush_page((uint32_t) page_table);
+        memset(page_table, 0, sizeof(page_table_t));
+
     }
 
     // map the page to the frame
@@ -304,6 +338,7 @@ void vmm_map_page(void *vir_addr, physical_addr phys_addr, uint32_t flags) {
     page_entry_set_frame(page_entry, (uint32_t) phys_addr);
     page_entry_add_attrib(page_entry, flags | PRESENT);
 
+    flush_page((uint32_t) vir_addr);
     // todo add the flags to the table entry
 }
 
@@ -315,13 +350,20 @@ void vmm_map_page(void *vir_addr, physical_addr phys_addr, uint32_t flags) {
 #define RESERVED_ERROR_CODE 0x8      // Reserved bits set in page table entry
 #define INSTRUCTION_ERROR_CODE 0x10  // Instruction fetch caused the fault
 
-page_entry_t *vmm_get_page_entry(void *vir_addr) {
+/*
+ * Returns the page entry of the page that contains the virtual address
+ * if the page table is swapped out, it swaps it in
+ * If its not present and
+ *
+ */
+static page_entry_t *vmm_get_page_entry(void *vir_addr) {
     assert(current_directory != NULL);
     uint32_t pd_index = get_directory_index(vir_addr);
     uint32_t pt_index = get_table_index(vir_addr);
 
     if (is_swapped(current_directory->tables[pd_index])) { // need to swap in the page table
-        if (!vmm_swap_in_page(&current_directory->tables[pd_index]))
+        if (!vmm_swap_in_page(&current_directory->tables[pd_index],
+                              get_page_table_vir_addr(current_directory, pd_index)))
             panic("Failed to swap in page. Dont know what to do noq");
     }
 
@@ -329,8 +371,8 @@ page_entry_t *vmm_get_page_entry(void *vir_addr) {
     return &page_table->entries[pt_index];
 }
 
+//todo fix this implementation - we fetch the page entry when we dont know if it exists
 void page_fault_handler(uint32_t error_code) {
-    put_string("Page fault");
     uint32_t fault_addr;
     asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
     page_entry_t *e = vmm_get_page_entry((void *) fault_addr);
@@ -339,12 +381,12 @@ void page_fault_handler(uint32_t error_code) {
         // fetch the page from disk if exits, else allocate a new frame
         // and map the page to the frame
         if (is_swapped(*e)) {
-            if (!vmm_swap_in_page(e))
+            if (!vmm_swap_in_page(e, fault_addr))
                 //todo Handle differently if its the user page(Probably make his life miserable)
                 panic("Failed to swap in page. dont know what to do so lets shut down the computer :)");
             return; // the iret in the page fault handler will refetch the instruction
         } else {
-            if (!vmm_alloc_page(e))
+            if (!vmm_alloc_page(e, (void *) fault_addr))
                 //todo Handle differently if its the user page(Probably throw an error that there is now memory)
                 panic("Failed to allocate a frame for the page. how tf did we mange to get here?");
             return;
@@ -382,28 +424,31 @@ void vmm_init() {
     size_t kernel_frames = (kernel_size + PAGE_SIZE - 1) / PAGE_SIZE;
 
     // the allocation of the frames in pmm is done in the pmm_init function
-    for (size_t i = 0; i < kernel_frames; i++)
-        vmm_map_page((void *) (&_kernel_start + i * PAGE_SIZE), (physical_addr) (&_kernel_start + i * PAGE_SIZE),
-                     KERNEL_PAGE_FLAGS | PRESENT);
+    // todo give the wrtie permission only to the data section
+    for (size_t i = 0; i < kernel_frames; i++) {
+        void *addr = (void *) (&_kernel_start + i * PAGE_SIZE);
+        vmm_map_page(addr, (physical_addr) addr, KERNEL_PAGE_FLAGS);
+    }
+
+    // Map the Recursive page_table to point to the page directory
+    current_directory->tables[RECURSIVE_PAGE_TABLE_INDEX] = (physical_addr) current_directory | KERNEL_PAGE_FLAGS;
 
     // map Kernel stack
-    for (size_t i = 0; i < _kernel_stack_pages_amount; i++)
-        vmm_map_page((void *) (_kernel_stack_top - i * PAGE_SIZE),
-                     (physical_addr) (_kernel_stack_top - i * PAGE_SIZE),
-                     KERNEL_PAGE_FLAGS | PRESENT);
+    for (size_t i = 0; i < _kernel_stack_pages_amount; i++) {
+        void *addr = (void *) (_kernel_stack_top - i * PAGE_SIZE);
+        vmm_map_page(addr, (physical_addr) addr, KERNEL_PAGE_FLAGS);
+    }
 
     //Map heap address
-
     KERNEL_BASE_HEAP_ADDR = ALIGN_TO_PAGE((uint32_t) _kernel_stack_top);
     size_t num_pages = KERNEL_HEAP_SIZE / PAGE_SIZE;
     for (size_t i = 0; i < num_pages; i++) {
-        vmm_map_page((void *) (KERNEL_BASE_HEAP_ADDR + i * PAGE_SIZE),
-                     (physical_addr) (KERNEL_BASE_HEAP_ADDR + i * PAGE_SIZE),
-                     KERNEL_PAGE_FLAGS | PRESENT);
+        void *addr = (void *) (KERNEL_BASE_HEAP_ADDR + i * PAGE_SIZE);
+        vmm_map_page(addr, (physical_addr) addr, KERNEL_PAGE_FLAGS);
     }
 
     //Map the VGA buffer
-    vmm_map_page((void *) VGA_ADDRESS, (physical_addr) VGA_ADDRESS, KERNEL_PAGE_FLAGS | PRESENT);
+    vmm_map_page((void *) VGA_ADDRESS, (physical_addr) VGA_ADDRESS, PRESENT | PAGE_WRITEABLE);
 
     // load the physical address of the kernel page directory
     load_page_dir((physical_addr) &kernel_directory);
