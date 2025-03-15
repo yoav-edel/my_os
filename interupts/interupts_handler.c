@@ -68,14 +68,13 @@ void cpu_handler(registers_t *regs)
 
 void isr_handler(registers_t *regs) {
     // todo maybe add sainty checks
-    if(regs->int_no < CPU_EXCEPTIONS)
-        cpu_handler(regs);
-    else if(regs->int_no == KEYBOARD_ISR)
+    if (regs->int_no == KEYBOARD_ISR)
     {
         keyboard_handler();
     } else if (regs->int_no == PAGE_FAULT_ISR) {
         page_fault_handler(regs->err_code);
-    }
+    } else if (regs->int_no < CPU_EXCEPTIONS)
+        cpu_handler(regs);
     else
     {
         put_string("Unknown interrupt\n");
