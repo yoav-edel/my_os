@@ -122,16 +122,16 @@ void pmm_init() {
     size_t kernel_size = (size_t) (&_kernel_end - &_kernel_start);
     size_t kernel_frames = (kernel_size + PMM_BLOCK_SIZE - 1) / PMM_BLOCK_SIZE;
     for (size_t i = 0; i < kernel_frames; i++)
-        pmm_mark_used((physical_addr) &_kernel_start + i * PMM_BLOCK_SIZE);
+        pmm_mark_used(((physical_addr) &_kernel_start) + i * PMM_BLOCK_SIZE);
 
     // map Kernel stack
     extern const unsigned int _kernel_stack_top, _kernel_stack_pages_amount;
 
     for (size_t i = 0; i < _kernel_stack_pages_amount; i++)
-        pmm_mark_used((physical_addr) &_kernel_stack_top - i * PMM_BLOCK_SIZE);
+        pmm_mark_used((physical_addr) _kernel_stack_top - i * PMM_BLOCK_SIZE);
 
     // Map heap address
-    KERNEL_BASE_HEAP_ADDR = ALIGNED_TO_PHYSICAL_PAGE((uint32_t) &_kernel_stack_top);
+    KERNEL_BASE_HEAP_ADDR = ALIGNED_TO_PHYSICAL_PAGE((uint32_t) _kernel_stack_top);
     size_t num_pages = KERNEL_HEAP_SIZE / PMM_BLOCK_SIZE;
     for (size_t i = 0; i < num_pages; i++) {
         pmm_mark_used((physical_addr) (KERNEL_BASE_HEAP_ADDR + i * PMM_BLOCK_SIZE));
