@@ -51,5 +51,6 @@
  */
 void pit_init();
 
+void pit_handler();
 
 #endif //MYKERNEL_PIT_H

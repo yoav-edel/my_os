@@ -7,7 +7,7 @@
 
 static void mask_all_except_keyboard();
 
-void send_ack_keyboard() {
+void pic_send_ack() {
     outb(PIC1_COMMAND, PCI_EOI);
 }
 

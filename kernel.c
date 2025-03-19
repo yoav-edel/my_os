@@ -10,7 +10,7 @@
 #include "memory/vmm.h"
 #include "memory/kmalloc.h"
 #include "std/string.h"
-
+#include "drivers/pit.h"
 
 void test_kmalloc() {
     init_kmalloc();
@@ -45,6 +45,7 @@ void kernel_main() {
     vmm_init();
     put_string("VMM initialized.\n");
     test_kmalloc();
+    pit_init();
     shell();
     while (1) {
         asm volatile("hlt");
