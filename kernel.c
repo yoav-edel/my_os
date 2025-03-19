@@ -43,7 +43,6 @@ void kernel_main() {
     put_string("Disk initialized.\n");
     pmm_init();
     vmm_init();
-
     put_string("VMM initialized.\n");
     test_kmalloc();
     shell();

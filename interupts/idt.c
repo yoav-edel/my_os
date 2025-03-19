@@ -122,7 +122,9 @@ void init_idt_ptr()
 }
 
 
-
+void idt_irq_install_handler(int irq, void (*handler)(void)) {
+    idt_set_gate(irq, (uint32_t) handler, KERNEL_CODE_SELECTOR, IDT_ATTR_KERNEL);
+}
 
 
 void load_idt() {

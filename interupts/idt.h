@@ -16,6 +16,8 @@ void idt_set_gate(uint8_t num, uint32_t base, uint16_t selector, uint8_t type_at
 void init_idt_ptr();
 void load_idt();
 
+void idt_irq_install_handler(int irq, void (*handler)(void);
+
 // IDT Attributes
 #define IDT_PRESENT 0x80          // Present bit (bit 7)
 #define IDT_DPL0 0x00             // Descriptor Privilege Level 0 (bits 6-5)

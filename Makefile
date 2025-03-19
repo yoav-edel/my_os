@@ -28,6 +28,7 @@ C_FILES = $(SRC_DIR)kernel.c \
           $(STD_DIR)/string.c \
           $(DRIVERS_DIR)/screen.c \
           $(DRIVERS_DIR)/keyboard.c \
+          $(DRIVERS_DIR)/pit.c \
           $(SRC_DIR)shell.c \
           $(INTERRUPTS_DIR)/pic.c \
           $(INTERRUPTS_DIR)/idt.c \
