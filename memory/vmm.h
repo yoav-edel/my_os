@@ -43,6 +43,11 @@ typedef struct {
     page_entry_t tables[ENTRIES_PER_TABLE];
 } __attribute__((aligned(PAGE_SIZE))) page_directory_t;
 
+typedef struct{
+  page_directory_t *page_dir; // The virtual address of the page directory
+   physical_addr page_dir_phys_addr; // The physical address of the page directory
+} vm_context_t;
+
 #define TABLES_PER_DIR 1024
 #define PAGE_TABLE_SIZE 1024
 #define PRESENT 0x1 // page present in memory
@@ -66,7 +71,7 @@ typedef struct {
 
 void vmm_init();
 void vmm_switch_page_directory(page_directory_t *dir);
-
+physical_addr vmm_calc_phys_addr(void *vir_addr);
 void page_fault_handler(uint32_t error_code);
 void vmm_map_page(void *vir_addr, physical_addr frame_addr, uint32_t flags);
 #endif // VMM_H

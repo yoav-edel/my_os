@@ -102,6 +102,10 @@ static inline bool is_cow(page_entry_t *e) {
     return false;
 }
 
+static inline uint16_t get_frame_offset(void *vir_addr) {
+    return (uint16_t) vir_addr & 0xFFF;
+}
+
 
 static inline void flush_tlb() {
     uint32_t cr3;
@@ -152,21 +156,6 @@ static void *page_fifo_dequeue() {
 
 // ---------------------------- VMM functions ----------------------------
 
-//page_directory_t *vmm_create_page_directory() {
-//    //TODO free frames if allocation fails and then aloocate again
-//    physical_addr phys_adrr_page_dir = pmm_alloc_frame();
-//    if (phys_adrr_page_dir == PMM_NO_FRAME_AVAILABLE)
-//        return NULL;
-//
-//    page_directory_t *page_dir = (page_directory_t *) phys_adrr_page_dir;
-//    memset(page_dir, 0, sizeof(page_directory_t)); // Clear the page directory
-//    //todo copy the kernel mapping to the new page directory
-//    if (current_directory != NULL)
-//        for (size_t i = KERNEL_START_DIRECTORY_INDEX; i < TABLES_PER_DIR; i++) {
-//            page_dir->entries[i] = current_directory->entries[i];
-//        }
-//    return page_dir;
-//}
 
 
 void enable_paging() {
@@ -404,6 +393,56 @@ void page_fault_handler(uint32_t error_code) {
         //todo implement the copy on write
         return;
 
+}
+
+physical_addr vmm_calc_phys_addr(void *vir_addr) {
+    page_entry_t *e = vmm_get_page_entry(vir_addr);
+    return get_frame_addr(*e) + get_frame_offset(vir_addr);
+
+}
+
+
+page_directory_t *vmm_create_empty_page_directory() {
+    page_directory_t *page_dir = (page_directory_t *) kmalloc(sizeof(page_directory_t));
+    if (page_dir == NULL)
+        return NULL;
+
+    memset(page_dir, 0, sizeof(page_directory_t));
+    return page_dir;
+}
+
+void vmm_destroy_page_directory(page_directory_t *page_dir) {
+    for (size_t i = 0; i < TABLES_PER_DIR; i++) {
+        if (is_page_present(page_dir->tables[i])) {
+            page_table_t *page_table = (page_table_t *) get_page_table_addr(page_dir, i);
+            for (size_t j = 0; j < PAGE_TABLE_SIZE; j++) {
+                if (is_page_present(page_table->entries[j]))
+                    pmm_free_frame(get_frame_addr(page_table->entries[j]));
+            }
+            pmm_free_frame(get_frame_addr(page_dir->tables[i]));
+        }
+    }
+    kfree(page_dir);
+}
+
+/*
+    * Creates a new vm context - a new page directory
+*   This function should only be used after the paging is enabled
+ */
+vm_context_t *vmm_create_vm_context() {
+    vm_context_t *vm_context = (vm_context_t *) kmalloc(sizeof(vm_context_t));
+    if (vm_context == NULL)
+        return NULL;
+
+    vm_context->page_dir = vmm_create_empty_page_directory();
+    vm_context->page_dir_phys_addr = vmm_calc_phys_addr(vm_context->page_dir);
+
+    return vm_context;
+}
+
+void vmm_destroy_vm_context(vm_context_t *vm_context) {
+    vmm_destroy_page_directory(vm_context->page_dir);
+    kfree(vm_context);
 }
 
 
