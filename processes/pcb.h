@@ -28,12 +28,11 @@ void context_destroy(context_t *context);
 
 typedef struct pcb {
     context_t *context;
-    page_directory_t *page_dir;
+    vm_context_t *vm_context;
     process_state_t state;
 } pcb_t;
 
-pcb_t *pcb_create(uint32_t eip, uint32_t esp, page_directory_t *page_dir);
-
+pcb_t *pcb_create(uint32_t eip, uint32_t esp, vm_context_t *vm_context);
 void pcb_destroy(pcb_t *pcb);
 
 

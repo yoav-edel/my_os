@@ -412,6 +412,7 @@ page_directory_t *vmm_create_empty_page_directory() {
 }
 
 void vmm_destroy_page_directory(page_directory_t *page_dir) {
+  	//todo handle cow pages
     for (size_t i = 0; i < TABLES_PER_DIR; i++) {
         if (is_page_present(page_dir->tables[i])) {
             page_table_t *page_table = (page_table_t *) get_page_table_addr(page_dir, i);
@@ -428,14 +429,19 @@ void vmm_destroy_page_directory(page_directory_t *page_dir) {
 /*
     * Creates a new vm context - a new page directory
 *   This function should only be used after the paging is enabled
+*    copy the mapping of the page_directory to the new page directory (if null copy the kernel mapping)
+*
  */
-vm_context_t *vmm_create_vm_context() {
+vm_context_t *vmm_create_vm_context(page_directory_t *page_dir) {
+  //todo handle cow pages
     vm_context_t *vm_context = (vm_context_t *) kmalloc(sizeof(vm_context_t));
     if (vm_context == NULL)
         return NULL;
 
     vm_context->page_dir = vmm_create_empty_page_directory();
+    // calc the physical address of the page directory using the kernel mapping beacuse the page direcotry is saved in the kerenl space
     vm_context->page_dir_phys_addr = vmm_calc_phys_addr(vm_context->page_dir);
+    //todo copy the kernel mapping to the new page directory
 
     return vm_context;
 }
