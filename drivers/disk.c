@@ -2,6 +2,7 @@
 #include "io.h"
 #include "screen.h"
 #include "../memory/utills.h"
+#include "../std/stdio.h"
 /*
  * Explanation about the delay that appears sometimes in the code:
  * According to the ATA specifications, after selecting a new drive (Master/Slave), a short delay of 400ns is required before reading the Status Register.
@@ -265,25 +266,25 @@ bool identify_drive(uint16_t base_port, uint8_t drive, identifyDeviceData *data)
 
     // Check if the drive exists
     if (inb(base_port + ATA_REG_CMD_STATUS) == 0) {
-        put_string("Drive does not exist.\n");
+        printf("Drive does not exist.\n");
         return false;
     }
 
     // Wait for BSY to clear
     if (!ata_wait_for_bsy(base_port)) {
-        put_string("Timeout waiting for BSY=0.\n");
+        printf("Timeout waiting for BSY=0.\n");
         return false;
     }
 
     // Check if this is an ATA drive
     if (inb(base_port + ATA_REG_LBA_MID) != 0 || inb(base_port + ATA_REG_LBA_HIGH) != 0) {
-        put_string("Not an ATA drive.\n");
+        printf("Not an ATA drive.\n");
         return false;
     }
 
     // Wait for DRQ to set
     if (!ata_wait_for_drq(base_port)) {
-        put_string("Timeout waiting for DRQ=1.\n");
+        printf("Timeout waiting for DRQ=1.\n");
         return false;
     }
 
@@ -345,7 +346,7 @@ bool ata_read_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_co
 
     // we are using pooling so we need to wait for the busy flag to clear
     if (!ata_wait_for_bsy(base_port)) {
-        put_string("Timeout: Drive stuck busy.\n");
+        printf("Timeout: Drive stuck busy.\n");
         return false;
     }
 
@@ -481,32 +482,14 @@ void init_disk_driver(){
     for (int i = 0; i < 4; i++) {
         identifyDeviceData *disk = disks[i];
         if (disk->valid) {
-            put_string("Disk ");
-            put_int(i);
-            put_string(" Model: ");
-            put_string(disk->model_number);
-            put_string("\n");
-            put_string("Serial: ");
-            put_string(disk->serial_number);
-            put_string("\n");
-            put_string("Firmware: ");
-            put_string(disk->firmware_revision);
-            put_string("\n");
-            put_string("Total Sectors: ");
-            put_int(disk->total_sectors);
-            put_string("\n");
-            put_string("logical sector size: ");
-            put_int(disk->logical_sector_size);
-            put_string("\n");
-            put_string("physical sector size: ");
-            put_int(disk->physical_sector_size);
-            put_string("\n");
-            put_string("Base I/O Port: ");
-            put_int(disk->base_io_port);
-            put_string("\n");
-            put_string("Slave: ");
-            put_int(disk->slave);
-            put_string("\n\n");
+            printf("Disk %d Model: %s\n", i, disk->model_number);
+            printf("Serial: %s\n", disk->serial_number);
+            printf("Firmware: %s\n", disk->firmware_revision);
+            printf("Total Sectors: %d\n", disk->total_sectors);
+            printf("logical sector size: %d\n", disk->logical_sector_size);
+            printf("physical sector size: %d\n", disk->physical_sector_size);
+            printf("Base I/O Port: %d\n", disk->base_io_port);
+            printf("Slave: %d\n\n", disk->slave);
         }
     }
 }
@@ -520,22 +503,22 @@ void test_disk_driver(){
 
     if(!ata_write_sectors(0, 0, 2, buffer1))
     {
-        put_string("failed to write to the first sector of the disk\n");
+        printf("failed to write to the first sector of the disk\n");
         return;
     }
-    put_string("done writing\n");
+    printf("done writing\n");
     //read from the first sector of the disk
 
     if(!ata_read_sectors(0, 0, 2, buffer2))
     {
-        put_string("failed to read the first sector of the disk\n");
+        printf("failed to read the first sector of the disk\n");
         return;
     }
     for(int i = 0; i < 1024; i++)
     {
-        put_char(buffer2[i]);
+        printf("%c", buffer2[i]);
     }
-    put_string("\ndone reading\n");
+    printf("\ndone reading\n");
 }
 
 // ------------------------------------------------------------

@@ -10,6 +10,7 @@
 #include "memory/vmm.h"
 #include "memory/kmalloc.h"
 #include "std/string.h"
+#include "std/stdio.h"
 
 
 void test_kmalloc() {
@@ -19,16 +20,13 @@ void test_kmalloc() {
 }
 
 
+
 void test_pmm() {
-    put_string("Testing PMM\n");
+    printf("Testing PMM\n");
     physical_addr addr = pmm_alloc_frame();
-    put_string("Allocated frame at: ");
-    put_int(addr);
-    put_string("\n");
+    printf("Allocated frame at: %p\n", addr);
     pmm_free_frame(addr);
-    put_string("Freed frame at: ");
-    put_int(addr);
-    put_string("\n");
+    printf("Freed frame at: %p\n", addr);
 }
 
 void kernel_main() {
@@ -38,17 +36,16 @@ void kernel_main() {
     // test the interrupts
     asm volatile("sti"); // enable interrupts
     clear_screen();
-    put_string("Kernel loaded successfully. its yoav kernel\n");
+    printf("Kernel loaded successfully. its yoav kernel\n");
     init_disk_driver();
-    put_string("Disk initialized.\n");
+    printf("Disk initialized.\n");
     pmm_init();
     vmm_init();
 
-    put_string("VMM initialized.\n");
+    printf("VMM initialized.\n");
+    test_pmm();
     test_kmalloc();
-    shell();
     while (1) {
         asm volatile("hlt");
     }
 }
-
