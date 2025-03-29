@@ -8,7 +8,17 @@
 #include "pid.h"
 #include "../std/string.h"
 #include "../errors.h"
+#include "../std/stdio.h"
 
+void process_print(process_t *process) {
+    if(process == NULL)
+        panic("Trying to print a NULL process, what the hell are you doing?");
+    printf("Process name: %s\n", process->name);
+    printf("Process PID: %d\n", process->pid);
+    printf("Process priority: %d\n", process->priority);
+    pcb_print(process->pcb);
+    printf("Process VM Context at %p\n", process->pcb->vm_context);
+}
 
 process_t *current_process = NULL;
 void process_destroy(process_t *process) {

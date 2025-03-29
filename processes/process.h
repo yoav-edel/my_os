@@ -17,6 +17,8 @@ typedef struct {
     priority_t priority;
 } process_t;
 
+
+void process_print(process_t *process);
 void processes_init();
 void process_destroy(process_t *process);
 process_t *process_create(void (*entry_point)(), char *name, priority_t priority, process_t *parent);

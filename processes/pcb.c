@@ -4,7 +4,17 @@
 
 #include "pcb.h"
 #include "kmalloc.h"
+#include "../std/stdio.h"
+#include "../memory/vmm.h"
+#include "../errors.h"
 
+void pcb_print(pcb_t *pcb) {
+    if(pcb == NULL)
+        panic("Trying to print a NULL pcb, what the hell are you doing?\n Closing the cumputer as punishment");
+    printf("PCB context: %p\n", pcb->context);
+    printf("PCB vm_context: %p\n", pcb->vm_context);
+    printf("PCB state: %d\n", pcb->state);
+}
 context_t *context_create(uint32_t eip, uint32_t esp) {
     context_t *context = kmalloc(sizeof(context_t));
     if(context == NULL)

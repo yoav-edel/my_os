@@ -32,6 +32,7 @@ typedef struct pcb {
     process_state_t state;
 } pcb_t;
 
+void pcb_print(pcb_t *pcb);
 pcb_t *pcb_create(uint32_t eip, uint32_t esp, vm_context_t *vm_context);
 void pcb_destroy(pcb_t *pcb);
 
