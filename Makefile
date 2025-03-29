@@ -39,7 +39,8 @@ C_FILES = $(SRC_DIR)kernel.c \
           $(MEMORY_DIR)/vmm.c \
           $(MEMORY_DIR)/pmm.c \
           $(MEMORY_DIR)/kmalloc.c \
-          $(SRC_DIR)/errors.c
+          $(SRC_DIR)/errors.c \
+          $(STD_DIR)/stdio.c
 
 OBJS = $(ASM_FILES:.asm=.o) $(C_FILES:.c=.o)
 
