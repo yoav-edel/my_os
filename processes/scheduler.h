@@ -41,4 +41,7 @@ process_t *scheduler_get_current_process();
  */
 void scheduler_init();
 
+
+void scheduler_handle_tick();
+
 #endif //scheduler_H

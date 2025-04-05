@@ -17,7 +17,7 @@ typedef struct {
     priority_t priority;
 } process_t;
 
-
+extern void process_switch(process_t *new_process);
 void process_print(process_t *process);
 void processes_init();
 void process_destroy(process_t *process);

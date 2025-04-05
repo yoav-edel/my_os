@@ -168,11 +168,13 @@ void enable_paging() {
 
 
 //todo fix it, it needs to load the physical address of the page directory
-//void vmm_switch_page_directory(page_directory_t *dir) {
-//    assert(dir != NULL); // Make sure the directory is not NULL
-//    current_directory = dir;
-//    load_curr_page_dir(); // Load the current page directory into the cr3 register
-//}
+void vmm_switch_vm_context(vm_context_t *vm_context) {
+    if (vm_context == NULL)
+        panic("Trying to switch to a NULL vm_context, what the hell are you doing?");
+    current_directory = vm_context->page_dir;
+    load_page_dir(vm_context->page_dir_phys_addr);
+    flush_tlb();
+}
 
 
 // return the page to swap out if there is no page to swap out return NULL

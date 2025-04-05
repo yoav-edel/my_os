@@ -70,7 +70,7 @@ typedef struct{
 
 
 void vmm_init();
-void vmm_switch_page_directory(page_directory_t *dir);
+void vmm_switch_vm_context(vm_context_t *vm_context);
 physical_addr vmm_calc_phys_addr(void *vir_addr);
 vm_context_t *vmm_create_vm_context(page_directory_t *page_dir);
 void vmm_destroy_vm_context(vm_context_t *vm_context);

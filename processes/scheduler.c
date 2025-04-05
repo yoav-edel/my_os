@@ -25,6 +25,7 @@ typedef struct {
 
 static process_queue_t ready_queue = {NULL, NULL, 0};
 static process_queue_node_t *current_process_node = NULL;
+static process_t *current_process = NULL;
 
 static process_queue_node_t *scheduler_create_queue_node(process_t *process) {
     process_queue_node_t *node = (process_queue_node_t *) kmalloc(sizeof(process_queue_node_t));
@@ -97,4 +98,18 @@ void scheduler_remove_process(process_t *process) {
         prev = current;
         current = current->next;
     }
+}
+
+static uint32_t tick_count = 0;
+#define TICKS_UINTIL_SWITCH 10
+void scheduler_handle_tick(){
+    tick_count++;
+    if(tick_count >= TICKS_UINTIL_SWITCH){
+        tick_count = 0;
+        process_t *next_process = scheduler_get_next_process();
+        if(next_process != NULL){
+            process_switch(next_process);
+        }
+    }
+
 }

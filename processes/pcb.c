@@ -55,3 +55,11 @@ void pcb_destroy(pcb_t *pcb) {
     vmm_destroy_vm_context(pcb->vm_context);
     kfree(pcb);
 }
+
+/*
+* This function is used to save the state of current running process
+*
+ */
+void pcb_save_state(pcb_t *pcb){
+
+}

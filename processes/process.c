@@ -48,14 +48,6 @@ process_t *process_create(void (*entry_point)(), char *name, priority_t priority
 }
 
 
-void switch_process(process_t *process) {
-	if(process == NULL)
-		panic("Trying to switch to a NULL process, what the hell are you doing?");
-	current_process = process;
-
-}
-
-
 void processes_init() {
 
 }
