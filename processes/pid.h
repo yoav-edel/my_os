@@ -4,6 +4,7 @@
 
 #ifndef MYKERNEL_PID_H
 #define MYKERNEL_PID_H
+#include "../std/stdint.h"
 typedef uint32_t pid_t;
 
 /**

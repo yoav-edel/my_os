@@ -25,7 +25,7 @@ typedef struct {
 
 static process_queue_t ready_queue = {NULL, NULL, 0};
 static process_queue_node_t *current_process_node = NULL;
-static process_t *current_process = NULL;
+process_t *current_process = NULL;
 
 static process_queue_node_t *scheduler_create_queue_node(process_t *process) {
     process_queue_node_t *node = (process_queue_node_t *) kmalloc(sizeof(process_queue_node_t));
@@ -107,9 +107,19 @@ void scheduler_handle_tick(){
     if(tick_count >= TICKS_UINTIL_SWITCH){
         tick_count = 0;
         process_t *next_process = scheduler_get_next_process();
-        if(next_process != NULL){
+        if(next_process != NULL && next_process != current_process) {
             process_switch(next_process);
         }
     }
 
+}
+
+void scheduler_init(process_t *init_process) {
+    if (init_process == NULL)
+        panic("Tried to initialize the scheduler with a NULL process, you sneaky bastard (probably a bug in the kernel)");
+
+    tick_count = 0;
+    scheduler_add_process(init_process);
+    current_process = init_process;
+    current_process_node = ready_queue.head;
 }

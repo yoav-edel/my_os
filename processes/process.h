@@ -1,13 +1,15 @@
 //
 // Created by Yoav on 3/16/2025.
 //
-#include "pcb.h"
-#include "priority.h"
 
 #ifndef MYKERNEL_PROCESS_H
 #define MYKERNEL_PROCESS_H
 
-typedef uint32_t pid_t;
+#include "../std/stdint.h"
+#include "pid.h"
+#include "pcb.h"
+#include "priority.h"
+
 
 
 typedef struct {

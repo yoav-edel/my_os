@@ -9,6 +9,7 @@
 #include "../std/string.h"
 #include "../errors.h"
 #include "../std/stdio.h"
+#include "scheduler.h"
 
 void process_print(process_t *process) {
     if(process == NULL)
@@ -20,7 +21,6 @@ void process_print(process_t *process) {
     printf("Process VM Context at %p\n", process->pcb->vm_context);
 }
 
-process_t *current_process = NULL;
 void process_destroy(process_t *process) {
   	if(process == NULL)
           return;
@@ -33,6 +33,9 @@ void process_destroy(process_t *process) {
 
 
 process_t *process_create(void (*entry_point)(), char *name, priority_t priority, process_t *parent) {
+    if(parent == NULL)
+		return NULL;
+	//todo maybe add more sainty checks
 	process_t *process = kmalloc(sizeof(process_t));
 	if(process == NULL)
         return NULL;
@@ -50,8 +53,8 @@ process_t *process_create(void (*entry_point)(), char *name, priority_t priority
 
 void processes_init() {
 	// Map the running kernel process to the current process
-    current_process = kmalloc(sizeof(process_t));
-    if(current_process == NULL)
+    process_t *proc = kmalloc(sizeof(process_t));
+    if(proc == NULL)
 		panic("Failed to allocate memory for the current process");
     vm_context_t *vm_context = kmalloc(sizeof(vm_context_t));
     if(vm_context == NULL)
@@ -59,12 +62,10 @@ void processes_init() {
     //The kernel init page directory virtual address and physical address are the same
     vm_context->page_dir = vmm_get_kernel_page_directory();
     vm_context->page_dir_phys_addr = (physical_addr) vm_context->page_dir;
-    current_process->pcb = pcb_create((uint32_t)0, 0, vm_context);
-    current_process->pid = pid_alloc();
-    strcpy(current_process->name, "kernel_init");
-    current_process->priority = HIGH;
-    current_process->pcb->context->edi = 0;
-
-
-
+    proc->pcb = pcb_create((uint32_t)0, 0, vm_context);
+    proc->pid = pid_alloc();
+    strcpy(proc->name, "kernel_init");
+    proc->priority = HIGH;
+    proc->pcb->context->edi = 0;
+	scheduler_init(proc);=
 }

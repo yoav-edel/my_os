@@ -37,9 +37,11 @@ process_t *scheduler_get_current_process();
 /**
  * @brief Initializes the scheduler subsystem
  *
+ * @param init_process Pointer to the process which handles the initialization of the system
  * Must be called before any other scheduler functions
+ * @return void
  */
-void scheduler_init();
+void scheduler_init(process_t *init_process);
 
 
 void scheduler_handle_tick();
