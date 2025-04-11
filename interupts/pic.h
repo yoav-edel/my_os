@@ -3,6 +3,7 @@
 //
 
 #ifndef MYKERNELPROJECT_PIC_H
+#include "../std/stdint.h"
 #define MYKERNELPROJECT_PIC_H
 #define PIC1_COMMAND 0x20
 #define PIC1_DATA    0x21
@@ -26,5 +27,5 @@
 
 void remap_pic();
 void unmask_irq(uint8_t irq);
-void send_ack_keyboard();
+void pic_send_ack();
 #endif //MYKERNELPROJECT_PIC_H

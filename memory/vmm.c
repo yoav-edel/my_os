@@ -17,6 +17,10 @@ static page_directory_t *current_directory = NULL;
 static page_directory_t kernel_directory = {0};
 static bool paging_enabled = false;
 
+page_directory_t *vmm_get_kernel_page_directory() {
+    return &kernel_directory;
+}
+
 typedef struct page_fifo_node {
     void *vir_addr;
     struct page_fifo_node *next;
@@ -102,6 +106,10 @@ static inline bool is_cow(page_entry_t *e) {
     return false;
 }
 
+static inline uint16_t get_frame_offset(void *vir_addr) {
+    return (uint16_t) vir_addr & 0xFFF;
+}
+
 
 static inline void flush_tlb() {
     uint32_t cr3;
@@ -152,21 +160,6 @@ static void *page_fifo_dequeue() {
 
 // ---------------------------- VMM functions ----------------------------
 
-//page_directory_t *vmm_create_page_directory() {
-//    //TODO free frames if allocation fails and then aloocate again
-//    physical_addr phys_adrr_page_dir = pmm_alloc_frame();
-//    if (phys_adrr_page_dir == PMM_NO_FRAME_AVAILABLE)
-//        return NULL;
-//
-//    page_directory_t *page_dir = (page_directory_t *) phys_adrr_page_dir;
-//    memset(page_dir, 0, sizeof(page_directory_t)); // Clear the page directory
-//    //todo copy the kernel mapping to the new page directory
-//    if (current_directory != NULL)
-//        for (size_t i = KERNEL_START_DIRECTORY_INDEX; i < TABLES_PER_DIR; i++) {
-//            page_dir->entries[i] = current_directory->entries[i];
-//        }
-//    return page_dir;
-//}
 
 
 void enable_paging() {
@@ -179,11 +172,13 @@ void enable_paging() {
 
 
 //todo fix it, it needs to load the physical address of the page directory
-//void vmm_switch_page_directory(page_directory_t *dir) {
-//    assert(dir != NULL); // Make sure the directory is not NULL
-//    current_directory = dir;
-//    load_curr_page_dir(); // Load the current page directory into the cr3 register
-//}
+void vmm_switch_vm_context(vm_context_t *vm_context) {
+    if (vm_context == NULL)
+        panic("Trying to switch to a NULL vm_context, what the hell are you doing?");
+    current_directory = vm_context->page_dir;
+    load_page_dir(vm_context->page_dir_phys_addr);
+    flush_tlb();
+}
 
 
 // return the page to swap out if there is no page to swap out return NULL
@@ -404,6 +399,67 @@ void page_fault_handler(uint32_t error_code) {
         //todo implement the copy on write
         return;
 
+}
+
+physical_addr vmm_calc_phys_addr(void *vir_addr) {
+    page_entry_t *e = vmm_get_page_entry(vir_addr);
+    return get_frame_addr(*e) + get_frame_offset(vir_addr);
+
+}
+
+
+page_directory_t *vmm_create_empty_page_directory() {
+    page_directory_t *page_dir = (page_directory_t *) kmalloc(sizeof(page_directory_t));
+    if (page_dir == NULL)
+        return NULL;
+
+    memset(page_dir, 0, sizeof(page_directory_t));
+    return page_dir;
+}
+
+void vmm_destroy_page_directory(page_directory_t *page_dir) {
+  	//todo handle cow pages
+    for (size_t i = 0; i < TABLES_PER_DIR; i++) {
+        if (is_page_present(page_dir->tables[i])) {
+            page_table_t *page_table = (page_table_t *) get_page_table_addr(page_dir, i);
+            for (size_t j = 0; j < PAGE_TABLE_SIZE; j++) {
+                if (is_page_present(page_table->entries[j]))
+                    pmm_free_frame(get_frame_addr(page_table->entries[j]));
+            }
+            pmm_free_frame(get_frame_addr(page_dir->tables[i]));
+        }
+        //todo handle cow pages
+        if (is_swapped(page_dir->tables[i])) {
+            uint32_t disk_slot = get_frame_addr(page_dir->tables[i]);
+            disk_free_slot(disk_slot);
+        }
+    }
+    kfree(page_dir);
+}
+
+/*
+    * Creates a new vm context - a new page directory
+*   This function should only be used after the paging is enabled
+*    copy the mapping of the page_directory to the new page directory (if null copy the kernel mapping)
+*
+ */
+vm_context_t *vmm_create_vm_context(page_directory_t *page_dir) {
+  //todo handle cow pages
+    vm_context_t *vm_context = (vm_context_t *) kmalloc(sizeof(vm_context_t));
+    if (vm_context == NULL)
+        return NULL;
+
+    vm_context->page_dir = vmm_create_empty_page_directory();
+    // calc the physical address of the page directory using the kernel mapping beacuse the page direcotry is saved in the kerenl space
+    vm_context->page_dir_phys_addr = vmm_calc_phys_addr(vm_context->page_dir);
+    //todo copy the kernel mapping to the new page directory
+
+    return vm_context;
+}
+
+void vmm_destroy_vm_context(vm_context_t *vm_context) {
+    vmm_destroy_page_directory(vm_context->page_dir);
+    kfree(vm_context);
 }
 
 

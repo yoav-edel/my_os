@@ -6,6 +6,7 @@
 #define MYKERNELPROJECT_INTERUPTS_HANDLER_H
 
 #include "../std/stdint.h"
+#define PIT_ISR 32
 #define KEYBOARD_ISR 33
 typedef struct {
     // pushad order (lowest address first)
