@@ -428,6 +428,11 @@ void vmm_destroy_page_directory(page_directory_t *page_dir) {
             }
             pmm_free_frame(get_frame_addr(page_dir->tables[i]));
         }
+        //todo handle cow pages
+        if (is_swapped(page_dir->tables[i])) {
+            uint32_t disk_slot = get_frame_addr(page_dir->tables[i]);
+            disk_free_slot(disk_slot);
+        }
     }
     kfree(page_dir);
 }
