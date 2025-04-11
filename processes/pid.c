@@ -11,6 +11,7 @@ pid_t pid_alloc() {
     return next_pid++;
 }
 
-void free_pid(pid_t pid) {
-
+void pid_free(pid_t pid) {
+    // TODO: Implement PID freeing logic
+    // For now, do nothing
 }

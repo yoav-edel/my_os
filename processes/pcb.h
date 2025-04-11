@@ -9,7 +9,7 @@
 
 #define DEFAULT_EFLAGS 0x202 // the 1-bit is always 1, and the 9th bit enables interrupts
 
-//todo add support of more regiristers
+//todo add support of more registers
 typedef struct {
     uint32_t edi;
     uint32_t esi;
