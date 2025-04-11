@@ -53,7 +53,12 @@ void processes_init() {
     current_process = kmalloc(sizeof(process_t));
     if(current_process == NULL)
 		panic("Failed to allocate memory for the current process");
-    vm_context_t *vm_context = NULL; //todo create a vm_context with the mapping of the kernel init proces
+    vm_context_t *vm_context = kmalloc(sizeof(vm_context_t));
+    if(vm_context == NULL)
+      	panic("Failed to allocate memory for the current process vm_context");
+    //The kernel init page directory virtual address and physical address are the same
+    vm_context->page_dir = vmm_get_kernel_page_directory();
+    vm_context->page_dir_phys_addr = (physical_addr) vm_context->page_dir;
     current_process->pcb = pcb_create((uint32_t)0, 0, vm_context);
     current_process->pid = pid_alloc();
     strcpy(current_process->name, "kernel_init");

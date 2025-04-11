@@ -17,6 +17,10 @@ static page_directory_t *current_directory = NULL;
 static page_directory_t kernel_directory = {0};
 static bool paging_enabled = false;
 
+page_directory_t *vmm_get_kernel_page_directory() {
+    return &kernel_directory;
+}
+
 typedef struct page_fifo_node {
     void *vir_addr;
     struct page_fifo_node *next;
