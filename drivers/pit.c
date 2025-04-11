@@ -7,12 +7,15 @@
 #include "screen.h"
 #include "io.h"
 #include "../interupts/pic.h"
+#include "../processes/process.h"
+
 
 static size_t frequency = 1;
 
 void pit_handler() {
-    put_string("Tick   ");
+
     pic_send_ack();
+
 }
 
 void pit_init() {
