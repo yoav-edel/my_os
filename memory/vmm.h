@@ -76,5 +76,6 @@ vm_context_t *vmm_create_vm_context(page_directory_t *page_dir);
 void vmm_destroy_vm_context(vm_context_t *vm_context);
 void page_fault_handler(uint32_t error_code);
 void vmm_map_page(void *vir_addr, physical_addr frame_addr, uint32_t flags);
+void vmm_unmap_page(void *vir_addr);
 page_directory_t *vmm_get_kernel_page_directory();
 #endif // VMM_H

@@ -176,8 +176,9 @@ void vmm_switch_vm_context(vm_context_t *vm_context) {
     if (vm_context == NULL)
         panic("Trying to switch to a NULL vm_context, what the hell are you doing?");
     current_directory = vm_context->page_dir;
-    load_page_dir(vm_context->page_dir_phys_addr);
     flush_tlb();
+    load_page_dir(vm_context->page_dir_phys_addr);
+
 }
 
 
@@ -337,6 +338,25 @@ void vmm_map_page(void *vir_addr, physical_addr phys_addr, uint32_t flags) {
     // todo add the flags to the table entry
 }
 
+void vmm_unmap_page(void *vir_addr) {
+    assert(current_directory != NULL);
+    page_entry_t *e = vmm_get_page_entry(vir_addr);
+   	if(is_page_present(*e))
+    {
+    	pmm_free_frame(get_frame_addr(*e));
+    	*e = 0;
+    }
+    else if(is_swapped(*e))
+    {
+    	uint32_t disk_slot = get_frame_addr(*e);
+    	disk_free_slot(disk_slot);
+    	*e = 0;
+    }
+
+}
+
+
+
 
 // Error code flags for page faults
 #define PRESENT_ERROR_CODE 0x1       // Page present
@@ -404,7 +424,6 @@ void page_fault_handler(uint32_t error_code) {
 physical_addr vmm_calc_phys_addr(void *vir_addr) {
     page_entry_t *e = vmm_get_page_entry(vir_addr);
     return get_frame_addr(*e) + get_frame_offset(vir_addr);
-
 }
 
 
@@ -450,10 +469,12 @@ vm_context_t *vmm_create_vm_context(page_directory_t *page_dir) {
         return NULL;
 
     vm_context->page_dir = vmm_create_empty_page_directory();
+    // Copy the kernel mapping to the new page directory
+    //todo the not kernel mapping should be copied using copy on write
+    for (size_t i = 0; i < TABLES_PER_DIR; i++)
+        vm_context->page_dir->tables[i] = page_dir->tables[i];
     // calc the physical address of the page directory using the kernel mapping beacuse the page direcotry is saved in the kerenl space
     vm_context->page_dir_phys_addr = vmm_calc_phys_addr(vm_context->page_dir);
-    //todo copy the kernel mapping to the new page directory
-
     return vm_context;
 }
 
