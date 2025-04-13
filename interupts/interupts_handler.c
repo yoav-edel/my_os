@@ -8,6 +8,7 @@
 #include "../std/stdlib.h"
 #include "../drivers/keyboard.h"
 #include "../memory/vmm.h"
+#include "../drivers/pit.h"
 
 #define PAGE_FAULT_ISR 14
 const char *exception_messages[] = {
@@ -73,7 +74,12 @@ void isr_handler(registers_t *regs) {
         keyboard_handler();
     } else if (regs->int_no == PAGE_FAULT_ISR) {
         page_fault_handler(regs->err_code);
-    } else if (regs->int_no < CPU_EXCEPTIONS)
+    }
+    else if(regs->int_no == PIT_ISR)
+    {
+        pit_handler();
+    }
+    else if (regs->int_no < CPU_EXCEPTIONS)
         cpu_handler(regs);
     else
     {

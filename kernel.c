@@ -11,6 +11,7 @@
 #include "memory/kmalloc.h"
 #include "std/string.h"
 #include "std/stdio.h"
+#include "processes/process.h"
 
 
 void test_kmalloc() {
@@ -33,16 +34,14 @@ void kernel_main() {
     init_gdt();
     init_idt();
     remap_pic();
-    // test the interrupts
-    asm volatile("sti"); // enable interrupts
-    clear_screen();
-    printf("Kernel loaded successfully. its yoav kernel\n");
     init_disk_driver();
-    printf("Disk initialized.\n");
     pmm_init();
     vmm_init();
+//    processes_init();
+    asm volatile("sti"); // enable interrupts
 
-    printf("VMM initialized.\n");
+    clear_screen();
+    printf("Kernel loaded successfully. its yoav kernel\n");
     test_pmm();
     test_kmalloc();
     while (1) {
