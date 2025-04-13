@@ -295,35 +295,35 @@ void vmm_free_page(page_entry_t *e) {
 /*
  * Maps a page to a frame
  */
-void vmm_map_page(void *vir_addr, physical_addr phys_addr, uint32_t flags) {
-    assert(current_directory != NULL);
+void vmm_map_page(page_directory_t *page_dir, void *vir_addr, physical_addr phys_addr, uint32_t flags) {
+    assert(page_dir != NULL);
     uint32_t pd_index = get_directory_index(vir_addr);
     uint32_t pt_index = get_table_index(vir_addr);
 
     page_table_t *page_table;
-    if (is_page_present(current_directory->tables[pd_index])) // the table is exist and present
-        page_table = (page_table_t *) get_page_table_addr(current_directory, pd_index);
+    if (is_page_present(page_dir->tables[pd_index])) // the table is exist and present
+        page_table = (page_table_t *) get_page_table_addr(page_dir, pd_index);
 
-    else if (is_swapped(current_directory->tables[pd_index])) // the table is exist but swapped
+    else if (is_swapped(page_dir->tables[pd_index])) // the table is exist but swapped
     {
-        if (!vmm_swap_in_page(&current_directory->tables[pd_index],
-                              get_page_table_vir_addr(current_directory, pd_index)))
+        if (!vmm_swap_in_page(&page_dir->tables[pd_index],
+                              get_page_table_vir_addr(page_dir, pd_index)))
             panic("Failed to swap in page. how tf did we mange to get here?");
-        page_table = (page_table_t *) get_page_table_addr(current_directory, pd_index);
+        page_table = (page_table_t *) get_page_table_addr(page_dir, pd_index);
     } else // the table does not exist. create a new one
     {
         if (!paging_enabled) {
-            if (!vmm_alloc_permanent_page(&current_directory->tables[pd_index]))
+            if (!vmm_alloc_permanent_page(&page_dir->tables[pd_index]))
                 panic("Failed to allocate a frame for the page table. We fucked up?");
         }
         else {
-            if (!vmm_alloc_page(&current_directory->tables[pd_index],
-                                (void *) get_page_table_vir_addr(current_directory, pd_index)))
+            if (!vmm_alloc_page(&page_dir->tables[pd_index],
+                                (void *) get_page_table_vir_addr(page_dir, pd_index)))
                 panic("Failed to allocate a frame for the page table. We fucked up?");
         }
         //needs to clear the page table
-        page_entry_add_attrib(&current_directory->tables[pd_index], PAGE_WRITEABLE);
-        page_table = (page_table_t *) get_page_table_addr(current_directory, pd_index);
+        page_entry_add_attrib(&page_dir->tables[pd_index], PAGE_WRITEABLE);
+        page_table = (page_table_t *) get_page_table_addr(page_dir, pd_index);
         flush_page((uint32_t) page_table);
         memset(page_table, 0, sizeof(page_table_t));
 
@@ -336,6 +336,11 @@ void vmm_map_page(void *vir_addr, physical_addr phys_addr, uint32_t flags) {
 
     flush_page((uint32_t) vir_addr);
     // todo add the flags to the table entry
+}
+
+void vmm_map_page_to_curr_dir(void *vir_addr, physical_addr frame_addr, uint32_t flags) {
+    assert(current_directory != NULL);
+    vmm_map_page(current_directory, vir_addr, frame_addr, flags);
 }
 
 void vmm_unmap_page(void *vir_addr) {
@@ -471,10 +476,12 @@ vm_context_t *vmm_create_vm_context(page_directory_t *page_dir) {
     vm_context->page_dir = vmm_create_empty_page_directory();
     // Copy the kernel mapping to the new page directory
     //todo the not kernel mapping should be copied using copy on write
-    for (size_t i = 0; i < TABLES_PER_DIR; i++)
+    for (size_t i = 0; i < TABLES_PER_DIR - 1; i++)
         vm_context->page_dir->tables[i] = page_dir->tables[i];
     // calc the physical address of the page directory using the kernel mapping beacuse the page direcotry is saved in the kerenl space
     vm_context->page_dir_phys_addr = vmm_calc_phys_addr(vm_context->page_dir);
+    // Map the recursive page table to point to the new page directory
+    vm_context->page_dir->tables[RECURSIVE_PAGE_TABLE_INDEX] = (physical_addr) vm_context->page_dir | KERNEL_PAGE_FLAGS;
     return vm_context;
 }
 
@@ -504,7 +511,7 @@ void vmm_init() {
     // todo give the wrtie permission only to the data section
     for (size_t i = 0; i < kernel_frames; i++) {
         void *addr = (void *) (&_kernel_start + i * PAGE_SIZE);
-        vmm_map_page(addr, (physical_addr) addr, KERNEL_PAGE_FLAGS);
+        vmm_map_page_to_curr_dir(addr, (physical_addr) addr, KERNEL_PAGE_FLAGS);
     }
 
     // Map the Recursive page_table to point to the page directory
@@ -513,7 +520,7 @@ void vmm_init() {
     // map Kernel stack
     for (size_t i = 0; i < _kernel_stack_pages_amount; i++) {
         void *addr = (void *) (_kernel_stack_top - i * PAGE_SIZE);
-        vmm_map_page(addr, (physical_addr) addr, KERNEL_PAGE_FLAGS);
+        vmm_map_page_to_curr_dir(addr, (physical_addr) addr, KERNEL_PAGE_FLAGS);
     }
 
     //Map heap address
@@ -521,11 +528,11 @@ void vmm_init() {
     size_t num_pages = KERNEL_HEAP_SIZE / PAGE_SIZE;
     for (size_t i = 0; i < num_pages; i++) {
         void *addr = (void *) (KERNEL_BASE_HEAP_ADDR + i * PAGE_SIZE);
-        vmm_map_page(addr, (physical_addr) addr, KERNEL_PAGE_FLAGS);
+        vmm_map_page_to_curr_dir(addr, (physical_addr) addr, KERNEL_PAGE_FLAGS);
     }
 
     //Map the VGA buffer
-    vmm_map_page((void *) VGA_ADDRESS, (physical_addr) VGA_ADDRESS, PRESENT | PAGE_WRITEABLE);
+    vmm_map_page_to_curr_dir((void *) VGA_ADDRESS, (physical_addr) VGA_ADDRESS, PRESENT | PAGE_WRITEABLE);
 
     // load the physical address of the kernel page directory
     load_page_dir((physical_addr) &kernel_directory);

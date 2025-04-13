@@ -36,7 +36,7 @@ process_switch:
     pushfd                 ; top of stack = EFLAGS
     pushad                 ; top of stack = EAX,ECX,EDX,EBX,ESP,EBP,ESI,EDI (in that order)
 
-    mov  eax, [CurrentProcess] ; current_process
+    mov  eax, [current_process] ; current_process
     mov  ecx, [eax + OFFSET_PCB]     ; pcb_t * old_pcb
     mov  ecx, [ecx + OFFSET_CONTEXT] ; context_t * old_context
 
@@ -89,7 +89,7 @@ process_switch:
     ;-------------------------------------------------------------------------
 .set_new:
  ; 2) current_process = next
-    mov  edx, [ebp + 8]             ; 'next'
+    mov  edx, [ebp + 8]             ; 'next Process'
     mov  [current_process], edx
 
     ; Reload the new process pointer from the global variable:
@@ -98,6 +98,12 @@ process_switch:
     mov  ecx, [ecx + VM_CONTEXT]     ; vm_context_t * new_vm_context
     push ecx
     call vmm_switch_vm_context
+    add esp, 4
+    ;load the new stack pointer
+    mov  eax, [current_process]     ; now eax points to the new process
+    mov ecx, [eax + OFFSET_PCB]     ; pcb_t * new_pcb
+    mov ecx, [ecx + OFFSET_CONTEXT] ; context_t * new_context
+    mov esp, [ecx + CONTEXT_ESP] ; load the new stack pointer
 
     ;We can load the context from the context structure, but its faster to load it from the stack
     popad                 ; pop EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX

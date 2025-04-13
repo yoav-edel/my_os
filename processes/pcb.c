@@ -3,7 +3,7 @@
 //
 
 #include "pcb.h"
-#include "kmalloc.h"
+#include "../memory/kmalloc.h"
 #include "../std/stdio.h"
 #include "../memory/vmm.h"
 #include "../errors.h"

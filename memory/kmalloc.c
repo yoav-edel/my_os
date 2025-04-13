@@ -164,7 +164,7 @@ struct slab *create_slab(size_t object_size){
     physical_addr slab_phys_addr = current_heap_addr;
     current_heap_addr += PMM_BLOCK_SIZE;
     void *slab_vir_addr = convert_to_vir_addr(slab_phys_addr);
-    vmm_map_page(slab_vir_addr, slab_phys_addr, PAGE_WRITEABLE);
+    vmm_map_page_to_curr_dir(slab_vir_addr, slab_phys_addr, PAGE_WRITEABLE);
 
     struct slab *slab = (struct slab *) slab_vir_addr;
     slab->object_size = object_size;
@@ -238,7 +238,7 @@ static void* _kamlloc_large(size_t size)
             //todo handle the error
             return NULL;
         }
-      vmm_map_page((void *)vir_addr, addr, PAGE_WRITEABLE);//todo add the right flags
+      vmm_map_page_to_curr_dir((void *)vir_addr, addr, PAGE_WRITEABLE);//todo add the right flags
     }
 
     void *ptr = (void *)current_large_heap_addr;

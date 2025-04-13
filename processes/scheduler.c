@@ -10,7 +10,8 @@
 
 #include "scheduler.h"
 #include "../memory/kmalloc.h"
-#include "../std/panic.h"
+#include "../errors.h"
+#include "../std/stdio.h"
 
 typedef struct process_queue_node {
     process_t *process;
@@ -105,6 +106,7 @@ static uint32_t tick_count = 0;
 void scheduler_handle_tick(){
     tick_count++;
     if(tick_count >= TICKS_UINTIL_SWITCH){
+		printf("Switching process\n");
         tick_count = 0;
         process_t *next_process = scheduler_get_next_process();
         if(next_process != NULL && next_process != current_process) {
@@ -112,6 +114,10 @@ void scheduler_handle_tick(){
         }
     }
 
+}
+
+process_t *scheduler_get_current_process() {
+    return current_process;
 }
 
 void scheduler_init(process_t *init_process) {
