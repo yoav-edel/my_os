@@ -8,13 +8,14 @@
 #include "io.h"
 #include "../interupts/pic.h"
 #include "../processes/process.h"
+#include "../processes/scheduler.h"
 
 
 static size_t frequency = 1;
 
 void pit_handler() {
-
     pic_send_ack();
+    scheduler_handle_tick();
 
 }
 

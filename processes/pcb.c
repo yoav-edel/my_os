@@ -10,7 +10,7 @@
 
 void pcb_print(pcb_t *pcb) {
     if(pcb == NULL)
-        panic("Trying to print a NULL pcb, what the hell are you doing?\n Closing the cumputer as punishment");
+        panic("Trying to print a NULL pcb, what the hell are you doing?\n Closing the computer as punishment");
     printf("PCB context: %p\n", pcb->context);
     printf("PCB vm_context: %p\n", pcb->vm_context);
     printf("PCB state: %d\n", pcb->state);
