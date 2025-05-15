@@ -5,6 +5,7 @@
 #include "process.h"
 #include "../memory/kmalloc.h"
 #include "../memory/vmm.h"
+#include "../memory/utills.h"
 #include "pid.h"
 #include "../std/string.h"
 #include "../errors.h"
@@ -30,56 +31,54 @@ void process_destroy(process_t *process) {
   	kfree(process);
 }
 
-void process_create_stack(process_t *process, uint32_t stack_size) {
-    if (process == NULL)
+void process_create_stack(process_t *process, uint32_t stack_size)
+{
+    if (!process)
         return;
 
-    uint32_t esp = process->pcb->context->esp;
+    vm_context_t *prev_vm_context = scheduler_get_current_process()->pcb->vm_context;
 
-    // Align the stack size to the page size.
+    // Round stack_size up to a multiple of PAGE_SIZE
     stack_size = (stack_size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+    uint32_t pages   = stack_size / PAGE_SIZE;
+    uint32_t esp_top = process->pcb->context->esp;
 
-    // Map memory for the stack pages.
-    for (uint32_t i = 0; i < stack_size; i += PAGE_SIZE) {
-        physical_addr addr = pmm_alloc_frame();
-        if (addr == 0) {
-            printf("Failed to allocate memory for the stack\n");
-            return;
-        }
-        // Map each page from (esp - i)
-        vmm_map_page(process->pcb->vm_context->page_dir,
-                     (void *)(esp - i),
-                     addr,
-                     PAGE_WRITEABLE);
+    // Switch into the child's page directory
+    vmm_switch_vm_context(process->pcb->vm_context);
+
+    for (uint32_t i = 0; i < pages; ++i) {
+        physical_addr pa = pmm_alloc_frame();
+        if (pa == PMM_NO_FRAME_AVAILABLE)
+            panic("pmm_alloc_frame() failed while building stack");
+
+        uint32_t vir_addr = esp_top - (i + 1) * PAGE_SIZE;
+
+        vmm_map_page_to_curr_dir((void *)vir_addr,
+                                 pa,
+                                  EMPTY_USER_PAGE_DIR_FLAGS);
+        // Invalidate TLB for this page
+        asm volatile ("invlpg (%0)" :: "r"(vir_addr) : "memory");
+
+        // Zero the newly mapped page in-place
+        memset((void *)vir_addr, 0, PAGE_SIZE);
     }
 
-    /*
-     * Create an initial stack frame with 11 words, laid out as follows:
-     *
-     * Index 0: will be popped into EDI
-     * Index 1: will be popped into ESI
-     * Index 2: will be popped into EBP
-     * Index 3: will be popped into ESP
-     * Index 4: will be popped into EBX
-     * Index 5: will be popped into EDX
-     * Index 6: will be popped into ECX
-     * Index 7: will be popped into EAX
-     * Index 8: will be popped into EFLAGS
-     * Index 9: will be popped into EBP (dummy)
-     * Index 10: will be popped by ret (the return address: the entry point)
-     *
-     * After process_switch sets ESP from context->esp, the popad/popfd/pop ebp/ret
-     * will load these values accordingly.
-     */
-    uint32_t *stack_frame = (uint32_t *)(esp);
-    for (int i = 0; i < 11; i++) {
-        stack_frame[i] = 0;
-    }
-    stack_frame[3] = esp;
+    // Build the initial trap frame at the top of the stack
+    const uint32_t FRAME_DWORDS = 11;
+    const uint32_t frame_bytes  = FRAME_DWORDS * sizeof(uint32_t);
+    uint32_t esp_frame = esp_top - frame_bytes;
 
-    stack_frame[8] = DEFAULT_EFLAGS;
+    // Pointer within the child's address space (active CR3)
+    uint32_t *f = (uint32_t *)esp_frame;
 
-    stack_frame[10] = process->pcb->context->eip;
+    // Zero the frame and initialize saved registers
+    memset(f, 0, frame_bytes);
+    f[3]  = 0;                              // saved EBP
+    f[8]  = DEFAULT_EFLAGS;                // initial EFLAGS
+    f[10] = process->pcb->context->eip;    // entry EIP
+
+    vmm_switch_vm_context(prev_vm_context);
+    process->pcb->context->esp = esp_frame;
 }
 
 process_t *process_create(void (*entry_point)(), char *name, priority_t priority, process_t *parent) {
@@ -89,13 +88,12 @@ process_t *process_create(void (*entry_point)(), char *name, priority_t priority
 	process_t *process = kmalloc(sizeof(process_t));
 	if(process == NULL)
         return NULL;
-  	process->pcb = pcb_create((uint32_t)entry_point, 10000000, parent->pcb->vm_context);
+  	process->pcb = pcb_create((uint32_t)entry_point, 100000000, parent->pcb->vm_context);
     if(process->pcb == NULL){
     	kfree(process);
         return NULL;
     }
     process_create_stack(process, 0x1000 * 5);
-
 	process->pid = pid_alloc();
 	strcpy(process->name, name);
 	process->priority = priority;

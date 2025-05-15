@@ -61,7 +61,7 @@ typedef struct{
 #define GLOBAL 0x100 // global page. TLB entries are not invalidated on CR3 writes
 #define SWAPPED 0x200 // page is swapped
 #define EMPTY_USER_PAGE_DIR_FLAGS (PAGE_WRITEABLE | PAGE_USER)
-#define KERNEL_PAGE_FLAGS (PAGE_WRITEABLE | PRESENT)
+#define KERNEL_PAGE_FLAGS (PAGE_WRITEABLE | PRESENT | GLOBAL)
 
 
 #define ALIGN_TO_PAGE(addr) ((addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1))

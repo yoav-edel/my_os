@@ -299,7 +299,6 @@ void vmm_map_page(page_directory_t *page_dir, void *vir_addr, physical_addr phys
     assert(page_dir != NULL);
     uint32_t pd_index = get_directory_index(vir_addr);
     uint32_t pt_index = get_table_index(vir_addr);
-
     page_table_t *page_table;
     if (is_page_present(page_dir->tables[pd_index])) // the table is exist and present
         page_table = (page_table_t *) get_page_table_addr(page_dir, pd_index);
@@ -313,6 +312,7 @@ void vmm_map_page(page_directory_t *page_dir, void *vir_addr, physical_addr phys
     } else // the table does not exist. create a new one
     {
         if (!paging_enabled) {
+          	// We are in the kernel space and the kernel is not swapped
             if (!vmm_alloc_permanent_page(&page_dir->tables[pd_index]))
                 panic("Failed to allocate a frame for the page table. We fucked up?");
         }
@@ -334,7 +334,6 @@ void vmm_map_page(page_directory_t *page_dir, void *vir_addr, physical_addr phys
     page_entry_set_frame(page_entry, (uint32_t) phys_addr);
     page_entry_add_attrib(page_entry, flags | PRESENT);
 
-    flush_page((uint32_t) vir_addr);
     // todo add the flags to the table entry
 }
 
@@ -357,6 +356,7 @@ void vmm_unmap_page(void *vir_addr) {
     	disk_free_slot(disk_slot);
     	*e = 0;
     }
+    flush_page((uint32_t) vir_addr);
 
 }
 
@@ -400,12 +400,12 @@ void page_fault_handler(uint32_t error_code) {
         // The page fault was caused by a page not present
         // fetch the page from disk if exits, else allocate a new frame
         // and map the page to the frame
-        if (is_swapped(*e)) {
+        if (is_swapped(*e)) { // the page is swapped so we need to swap it in
             if (!vmm_swap_in_page(e, fault_addr))
                 //todo Handle differently if its the user page(Probably make his life miserable)
                 panic("Failed to swap in page. dont know what to do so lets shut down the computer :)");
             return; // the iret in the page fault handler will refetch the instruction
-        } else {
+        } else { // the page is not present and not swapped so we need to allocate a new frame
             if (!vmm_alloc_page(e, (void *) fault_addr))
                 //todo Handle differently if its the user page(Probably throw an error that there is now memory)
                 panic("Failed to allocate a frame for the page. how tf did we mange to get here?");
@@ -481,7 +481,7 @@ vm_context_t *vmm_create_vm_context(page_directory_t *page_dir) {
     // calc the physical address of the page directory using the kernel mapping beacuse the page direcotry is saved in the kerenl space
     vm_context->page_dir_phys_addr = vmm_calc_phys_addr(vm_context->page_dir);
     // Map the recursive page table to point to the new page directory
-    vm_context->page_dir->tables[RECURSIVE_PAGE_TABLE_INDEX] = (physical_addr) vm_context->page_dir | KERNEL_PAGE_FLAGS;
+    vm_context->page_dir->tables[RECURSIVE_PAGE_TABLE_INDEX] = vm_context->page_dir_phys_addr | KERNEL_PAGE_FLAGS;
     return vm_context;
 }
 
