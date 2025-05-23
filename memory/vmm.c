@@ -428,6 +428,8 @@ void page_fault_handler(uint32_t error_code) {
 
 physical_addr vmm_calc_phys_addr(void *vir_addr) {
     page_entry_t *e = vmm_get_page_entry(vir_addr);
+    if (!is_page_present(*e))
+        panic("Trying to calculate the physical address of a page that is not present");
     return get_frame_addr(*e) + get_frame_offset(vir_addr);
 }
 
