@@ -385,6 +385,9 @@ static page_entry_t *vmm_get_page_entry(void *vir_addr) {
             panic("Failed to swap in page. Dont know what to do noq");
     }
 
+    if (!is_page_present(current_directory->tables[pd_index])) // the page table is not present
+        panic("Trying to access a page that is not present. how tf did we mange to get here?");
+
     page_table_t *page_table = (page_table_t *) get_page_table_addr(current_directory, pd_index);
     return &page_table->entries[pt_index];
 }
