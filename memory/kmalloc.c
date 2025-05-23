@@ -226,7 +226,7 @@ void* alloc_from_cache(struct cache* cache)
 * @param size The size of the memory to allocate.
 * @return A pointer to the allocated memory, or NULL if allocation failed.
  */
-static void* _kamlloc_large(size_t size)
+static void* kmalloc_large(size_t size)
 {
     size_t aligned_size = (size + PMM_BLOCK_SIZE - 1) & ~(PMM_BLOCK_SIZE - 1);
 
@@ -235,7 +235,9 @@ static void* _kamlloc_large(size_t size)
       uint32_t vir_addr = current_large_heap_addr + i * PMM_BLOCK_SIZE;
       physical_addr addr = pmm_alloc_frame();
         if (addr == PMM_NO_FRAME_AVAILABLE) {
-            //todo handle the error
+           	// unmap the pages that were already allocated
+            for (size_t j = 0; j < i; j++)
+                vmm_unmap_page((void *)(current_large_heap_addr + j * PMM_BLOCK_SIZE));
             return NULL;
         }
       vmm_map_page_to_curr_dir((void *)vir_addr, addr, PAGE_WRITEABLE);//todo add the right flags
@@ -269,7 +271,7 @@ static bool _kmalloc_large_free(void *ptr)
 void* kmalloc(size_t size)
 {
     if(size > MAX_CACHE_SIZE) // less likely
-        return _kamlloc_large(size);
+        return kmalloc_large(size);
     struct cache* cache = get_cache(size);
     if(cache == NULL)
     {
