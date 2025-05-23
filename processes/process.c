@@ -13,6 +13,8 @@
 #include "scheduler.h"
 #include "../std/stdint.h"
 
+#define PROCESS_NAME_MAX_LENGTH 32
+
 void process_print(process_t *process) {
     if(process == NULL)
         panic("Trying to print a NULL process, what the hell are you doing?");
@@ -95,7 +97,8 @@ process_t *process_create(void (*entry_point)(), char *name, priority_t priority
     }
     process_create_stack(process, 0x1000 * 5);
 	process->pid = pid_alloc();
-	strcpy(process->name, name);
+    strncpy(process->name, name, PROCESS_NAME_MAX_LENGTH - 1);
+    process->name[PROCESS_NAME_MAX_LENGTH - 1] = '\0'; // Ensure null termination
 	process->priority = priority;
   	return process;
 }
@@ -114,7 +117,8 @@ void processes_init() {
     vm_context->page_dir_phys_addr = (physical_addr) vm_context->page_dir;
     proc->pcb = pcb_create((uint32_t)0, 0, vm_context);
     proc->pid = pid_alloc();
-    strcpy(proc->name, "kernel_init");
+    strncpy(proc->name, "kernel_init", PROCESS_NAME_MAX_LENGTH - 1);
+    proc->name[PROCESS_NAME_MAX_LENGTH - 1] = '\0'; // Ensure null termination
     proc->priority = HIGH;
     proc->pcb->context->edi = 0;
 	scheduler_init(proc);
