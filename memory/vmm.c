@@ -171,12 +171,10 @@ void enable_paging() {
 }
 
 
-//todo fix it, it needs to load the physical address of the page directory
 void vmm_switch_vm_context(vm_context_t *vm_context) {
     if (vm_context == NULL)
         panic("Trying to switch to a NULL vm_context, what the hell are you doing?");
     current_directory = vm_context->page_dir;
-    flush_tlb();
     load_page_dir(vm_context->page_dir_phys_addr);
 
 }
