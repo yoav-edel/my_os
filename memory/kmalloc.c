@@ -59,11 +59,12 @@ static large_alloc_t *create_large_alloc(size_t size, void *ptr) {
     alloc->prev = NULL;
     return alloc;
 }
+//Asumes that the large allocation is not already in the list and that ptr is already freed
 static void large_alloc_destroy(large_alloc_t *alloc) {
     if (alloc == NULL) {
         return;
     }
-    kfree(alloc->ptr);
+    //Does not free beacuse its already freeed
     kfree(alloc);
 }
 
@@ -91,7 +92,9 @@ static void large_alloc_remove(large_alloc_t *alloc) {
         large_allocations = alloc->next;
     if (alloc->next != NULL)
         alloc->next->prev = alloc->prev;
-
+	alloc->next = NULL;
+    alloc->prev = NULL;
+    alloc->ptr = NULL;
     large_alloc_destroy(alloc);
 }
 
@@ -105,9 +108,6 @@ static large_alloc_t *get_large_alloc_by_ptr(void *ptr) {
     }
     return NULL;
 }
-
-
-
 
 
 static struct cache caches[NUM_CACHES] = {
@@ -260,7 +260,7 @@ static bool _kmalloc_large_free(void *ptr)
     size_t size = alloc->size;
     size_t aligned_size = (size + PMM_BLOCK_SIZE - 1) & ~(PMM_BLOCK_SIZE - 1);
     for (size_t i = 0; i < aligned_size / PMM_BLOCK_SIZE; i++) {
-        uint32_t addr = (uint32_t)ptr + i * PMM_BLOCK_SIZE - KERNEL_BASE_HEAP_ADDR;
+        uint32_t addr = (uint32_t)ptr + i * PMM_BLOCK_SIZE;
         vmm_unmap_page((void *)addr);
     }
     large_alloc_remove(alloc);
