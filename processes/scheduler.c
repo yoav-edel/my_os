@@ -123,10 +123,10 @@ void scheduler_remove_process(process_t *process) {
 }
 
 static uint32_t tick_count = 0;
-#define TICKS_UINTIL_SWITCH 30
+#define TICKS_UNTIL_SWITCH 10 // Changed from 30 to 10
 void scheduler_handle_tick(){
     tick_count++;
-    if(tick_count >= TICKS_UINTIL_SWITCH){
+    if(tick_count >= TICKS_UNTIL_SWITCH){
         tick_count = 0;
         process_t *next_process = scheduler_get_next_process();
         if(next_process != NULL && next_process != current_process) {
