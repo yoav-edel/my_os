@@ -17,6 +17,11 @@ static page_directory_t *current_directory = NULL;
 static page_directory_t kernel_directory = {0};
 static bool paging_enabled = false;
 
+/**
+ * @brief Returns a pointer to the kernel's page directory.
+ *
+ * @return Pointer to the kernel page directory structure.
+ */
 page_directory_t *vmm_get_kernel_page_directory() {
     return &kernel_directory;
 }
@@ -101,16 +106,35 @@ static inline bool is_page_user_error(uint32_t error_code) {
     return error_code & 0x4;
 }
 
+/**
+ * @brief Checks if a page entry is marked as copy-on-write (COW).
+ *
+ * @param e Pointer to the page entry to check.
+ * @return true if the page is copy-on-write; false otherwise.
+ *
+ * @note Currently always returns false as COW is not yet implemented.
+ */
 static inline bool is_cow(page_entry_t *e) {
     //todo after the cow mechanism is implemented return *e & COW
     return false;
 }
 
+/**
+ * @brief Returns the offset within a page for a given virtual address.
+ *
+ * @param vir_addr Virtual address to extract the offset from.
+ * @return uint16_t Offset within the 4KB page (lower 12 bits of the address).
+ */
 static inline uint16_t get_frame_offset(void *vir_addr) {
     return (uint16_t) vir_addr & 0xFFF;
 }
 
 
+/**
+ * @brief Flushes the entire Translation Lookaside Buffer (TLB).
+ *
+ * Forces the processor to reload all page table entries by reloading the CR3 register.
+ */
 static inline void flush_tlb() {
     uint32_t cr3;
     asm volatile ("mov %%cr3, %0" : "=r"(cr3));
@@ -158,7 +182,11 @@ static void *page_fifo_dequeue() {
 
 
 
-// ---------------------------- VMM functions ----------------------------
+/**
+ * @brief Enables paging by setting the paging bit in the CR0 register.
+ *
+ * Activates the paging mechanism in the CPU and updates the internal flag to indicate paging is enabled.
+ */
 
 
 
@@ -171,6 +199,13 @@ void enable_paging() {
 }
 
 
+/**
+ * @brief Switches the current virtual memory context to the specified VM context.
+ *
+ * Updates the active page directory and loads its physical address into the processor's page directory register.
+ *
+ * @param vm_context Pointer to the VM context to switch to. Must not be NULL.
+ */
 void vmm_switch_vm_context(vm_context_t *vm_context) {
     if (vm_context == NULL)
         panic("Trying to switch to a NULL vm_context, what the hell are you doing?");
@@ -290,8 +325,15 @@ void vmm_free_page(page_entry_t *e) {
 }
 
 
-/*
- * Maps a page to a frame
+/**
+ * @brief Maps a virtual address to a physical frame in the specified page directory.
+ *
+ * Ensures the relevant page table exists (creating or swapping it in if necessary), then maps the given virtual address to the specified physical frame with the provided flags. The page table is cleared if newly created.
+ *
+ * @param page_dir Pointer to the page directory where the mapping will be established.
+ * @param vir_addr Virtual address to be mapped.
+ * @param phys_addr Physical frame address to map to.
+ * @param flags Page entry flags (e.g., writable, user-accessible).
  */
 void vmm_map_page(page_directory_t *page_dir, void *vir_addr, physical_addr phys_addr, uint32_t flags) {
     assert(page_dir != NULL);
@@ -335,11 +377,27 @@ void vmm_map_page(page_directory_t *page_dir, void *vir_addr, physical_addr phys
     // todo add the flags to the table entry
 }
 
+/**
+ * @brief Maps a virtual address to a physical frame in the current page directory.
+ *
+ * Associates the specified virtual address with a physical frame using the current page directory and applies the given flags.
+ *
+ * @param vir_addr Virtual address to map.
+ * @param frame_addr Physical frame address to map to.
+ * @param flags Page entry flags to set for the mapping.
+ */
 void vmm_map_page_to_curr_dir(void *vir_addr, physical_addr frame_addr, uint32_t flags) {
     assert(current_directory != NULL);
     vmm_map_page(current_directory, vir_addr, frame_addr, flags);
 }
 
+/**
+ * @brief Unmaps a virtual page from the current page directory.
+ *
+ * Frees the physical frame if the page is present, or releases the disk slot if the page is swapped out. The page entry is cleared and the page is invalidated in the TLB.
+ *
+ * @param vir_addr Virtual address of the page to unmap.
+ */
 void vmm_unmap_page(void *vir_addr) {
     assert(current_directory != NULL);
     page_entry_t *e = vmm_get_page_entry(vir_addr);
@@ -368,11 +426,13 @@ void vmm_unmap_page(void *vir_addr) {
 #define RESERVED_ERROR_CODE 0x8      // Reserved bits set in page table entry
 #define INSTRUCTION_ERROR_CODE 0x10  // Instruction fetch caused the fault
 
-/*
- * Returns the page entry of the page that contains the virtual address
- * if the page table is swapped out, it swaps it in
- * If its not present and
+/**
+ * @brief Retrieves the page entry for a given virtual address in the current page directory.
  *
+ * If the corresponding page table is swapped out, it is swapped back in. Panics if the page table is not present after swapping.
+ *
+ * @param vir_addr Virtual address whose page entry is to be retrieved.
+ * @return Pointer to the page entry corresponding to the given virtual address.
  */
 static page_entry_t *vmm_get_page_entry(void *vir_addr) {
     assert(current_directory != NULL);
@@ -392,7 +452,13 @@ static page_entry_t *vmm_get_page_entry(void *vir_addr) {
     return &page_table->entries[pt_index];
 }
 
-//todo fix this implementation - we fetch the page entry when we dont know if it exists
+/**
+ * @brief Handles page faults by resolving missing or invalid page accesses.
+ *
+ * Determines the cause of a page fault using the error code and faulting address. If the fault is due to a non-present page, attempts to swap in the page from disk or allocate a new frame. If the fault is due to a permission error, panics in kernel mode or returns for user mode. Copy-on-write handling is not yet implemented.
+ *
+ * @param error_code The error code provided by the CPU on a page fault, indicating the nature of the fault.
+ */
 void page_fault_handler(uint32_t error_code) {
     uint32_t fault_addr;
     asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
@@ -427,6 +493,16 @@ void page_fault_handler(uint32_t error_code) {
 
 }
 
+/**
+ * @brief Calculates the physical address corresponding to a given virtual address.
+ *
+ * Looks up the page entry for the provided virtual address, verifies the page is present, and computes the physical address by combining the frame base address with the offset within the page.
+ *
+ * @param vir_addr Virtual address to translate.
+ * @return physical_addr The corresponding physical address.
+ *
+ * @note Panics if the page for the given virtual address is not present.
+ */
 physical_addr vmm_calc_phys_addr(void *vir_addr) {
     page_entry_t *e = vmm_get_page_entry(vir_addr);
     if (!is_page_present(*e))
@@ -435,6 +511,13 @@ physical_addr vmm_calc_phys_addr(void *vir_addr) {
 }
 
 
+/**
+ * @brief Allocates and initializes an empty page directory.
+ *
+ * Allocates memory for a new page directory and zeroes its contents.
+ *
+ * @return Pointer to the newly allocated page directory, or NULL if allocation fails.
+ */
 page_directory_t *vmm_create_empty_page_directory() {
     page_directory_t *page_dir = (page_directory_t *) kmalloc(sizeof(page_directory_t));
     if (page_dir == NULL)
@@ -444,6 +527,13 @@ page_directory_t *vmm_create_empty_page_directory() {
     return page_dir;
 }
 
+/**
+ * @brief Frees all resources associated with a page directory.
+ *
+ * Iterates through all page tables in the given page directory, freeing physical frames for present pages and page tables, and releasing disk slots for swapped-out tables. Finally, deallocates the page directory structure itself.
+ *
+ * @param page_dir Pointer to the page directory to destroy.
+ */
 void vmm_destroy_page_directory(page_directory_t *page_dir) {
   	//todo handle cow pages
     for (size_t i = 0; i < TABLES_PER_DIR; i++) {
@@ -464,11 +554,13 @@ void vmm_destroy_page_directory(page_directory_t *page_dir) {
     kfree(page_dir);
 }
 
-/*
-    * Creates a new vm context - a new page directory
-*   This function should only be used after the paging is enabled
-*    copy the mapping of the page_directory to the new page directory (if null copy the kernel mapping)
-*
+/**
+ * @brief Creates a new virtual memory context with a new page directory.
+ *
+ * Allocates a new VM context and page directory, copying all mappings from the provided page directory except the recursive entry. The new directory is set up with a recursive mapping and its physical address is calculated. Intended for use after paging is enabled.
+ *
+ * @param page_dir Source page directory to copy mappings from.
+ * @return Pointer to the newly created VM context, or NULL on allocation failure.
  */
 vm_context_t *vmm_create_vm_context(page_directory_t *page_dir) {
   //todo handle cow pages
@@ -488,12 +580,22 @@ vm_context_t *vmm_create_vm_context(page_directory_t *page_dir) {
     return vm_context;
 }
 
+/**
+ * @brief Frees all resources associated with a virtual memory context.
+ *
+ * Destroys the page directory and all mapped frames or disk slots for the given VM context, then deallocates the context structure itself.
+ */
 void vmm_destroy_vm_context(vm_context_t *vm_context) {
     vmm_destroy_page_directory(vm_context->page_dir);
     kfree(vm_context);
 }
 
 
+/**
+ * @brief Initializes the Virtual Memory Manager and sets up kernel paging.
+ *
+ * Sets up the kernel's page directory, identity maps the kernel code, data, stack, heap, and VGA buffer, and enables paging. Also establishes recursive page table mapping for efficient page table access.
+ */
 void vmm_init() {
     current_directory = &kernel_directory;
 

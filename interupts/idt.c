@@ -66,6 +66,13 @@ extern void isr31();
 extern void isr32();
 extern void isr33();
 
+/**
+ * @brief Initializes IDT entries for CPU exceptions and key hardware interrupts.
+ *
+ * Sets up the Interrupt Descriptor Table (IDT) entries for interrupt vectors 0 through 33,
+ * associating each with its corresponding interrupt service routine (ISR) for CPU exceptions,
+ * the programmable interval timer (PIT), and the keyboard.
+ */
 void init_idt_entries() {
     idt_set_gate(0, (uint32_t)isr0, KERNEL_CODE_SELECTOR, IDT_ATTR_KERNEL);
     idt_set_gate(1, (uint32_t)isr1, KERNEL_CODE_SELECTOR, IDT_ATTR_KERNEL);
@@ -115,6 +122,11 @@ void idt_set_gate(uint8_t num, uint32_t base, uint16_t selector, uint8_t type_at
 }
 
 
+/**
+ * @brief Initializes the IDT pointer structure with the size and base address of the IDT.
+ *
+ * Sets the limit and base fields of the IDT pointer to prepare for loading the IDT into the CPU.
+ */
 void init_idt_ptr()
 {
     idtPtr.limit = sizeof(idt) - 1;
@@ -122,11 +134,25 @@ void init_idt_ptr()
 }
 
 
+/**
+ * @brief Installs a custom interrupt handler for a specified IRQ.
+ *
+ * Sets the IDT entry for the given IRQ number to point to the provided handler function,
+ * using the kernel code segment selector and kernel privilege attributes.
+ *
+ * @param irq Interrupt request number to associate with the handler.
+ * @param handler Function pointer to the interrupt handler to install.
+ */
 void idt_irq_install_handler(int irq, void (*handler)(void)) {
     idt_set_gate(irq, (uint32_t) handler, KERNEL_CODE_SELECTOR, IDT_ATTR_KERNEL);
 }
 
 
+/**
+ * @brief Loads the Interrupt Descriptor Table (IDT) into the CPU.
+ *
+ * Updates the processor's IDT register with the address and size specified in the global `idtPtr` structure, enabling the CPU to use the configured IDT for interrupt handling.
+ */
 void load_idt() {
     asm volatile ("lidt %0" : : "m"(idtPtr));
 }

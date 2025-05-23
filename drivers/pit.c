@@ -13,11 +13,23 @@
 
 static size_t frequency = 100;
 
+/**
+ * @brief Handles the Programmable Interval Timer (PIT) interrupt.
+ *
+ * Acknowledges the interrupt to the Programmable Interrupt Controller (PIC) and notifies the scheduler to perform a tick update for process management.
+ */
 void pit_handler() {
     pic_send_ack();
     scheduler_handle_tick();
 }
 
+/**
+ * @brief Initializes the Programmable Interval Timer (PIT) with the configured frequency.
+ *
+ * Configures the PIT hardware to generate periodic interrupts at the specified frequency,
+ * clamping the value to a safe range. Programs the PIT command and data registers and
+ * enables the PIT interrupt line on the Programmable Interrupt Controller (PIC).
+ */
 void pit_init() {
     // Validate frequency to prevent divisor overflow and ensure a reasonable rate
     if (frequency < 20) {

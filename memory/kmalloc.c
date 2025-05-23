@@ -45,7 +45,16 @@ typedef struct large_alloc {
 
 } large_alloc_t;
 
-static large_alloc_t *large_allocations = NULL; // Linked list of large allocations
+static large_alloc_t *large_allocations = NULL; /**
+ * @brief Allocates and initializes a metadata record for a large memory allocation.
+ *
+ * Creates a new `large_alloc_t` structure to track a large allocation of the specified size and pointer.
+ * Panics if memory for the metadata cannot be allocated.
+ *
+ * @param size The size of the large allocation in bytes.
+ * @param ptr Pointer to the allocated memory block.
+ * @return Pointer to the initialized `large_alloc_t` structure.
+ */
 
 static large_alloc_t *create_large_alloc(size_t size, void *ptr) {
 	large_alloc_t *alloc = (large_alloc_t *) kmalloc(sizeof(large_alloc_t));
@@ -59,7 +68,13 @@ static large_alloc_t *create_large_alloc(size_t size, void *ptr) {
     alloc->prev = NULL;
     return alloc;
 }
-//Asumes that the large allocation is not already in the list and that ptr is already freed
+/**
+ * @brief Frees the metadata structure for a large memory allocation.
+ *
+ * Assumes the associated memory has already been freed and the allocation is not in the tracking list.
+ *
+ * @param alloc Pointer to the large allocation metadata to destroy.
+ */
 static void large_alloc_destroy(large_alloc_t *alloc) {
     if (alloc == NULL) {
         return;
@@ -70,6 +85,11 @@ static void large_alloc_destroy(large_alloc_t *alloc) {
 
 
 
+/**
+ * @brief Inserts a large allocation record at the head of the large allocations list.
+ *
+ * Updates the doubly linked list of large allocations to include the given allocation as the new head.
+ */
 static void insert_large_alloc(large_alloc_t *alloc) {
     if (large_allocations == NULL)
         large_allocations = alloc;
@@ -82,6 +102,11 @@ static void insert_large_alloc(large_alloc_t *alloc) {
 
 }
 
+/**
+ * @brief Removes a large allocation from the global linked list and destroys its metadata.
+ *
+ * If the provided allocation is NULL, the function does nothing. The memory pointed to by the allocation is not freed; only the allocation's metadata is destroyed.
+ */
 static void large_alloc_remove(large_alloc_t *alloc) {
     if (alloc == NULL)
         return;
@@ -98,6 +123,14 @@ static void large_alloc_remove(large_alloc_t *alloc) {
     large_alloc_destroy(alloc);
 }
 
+/**
+ * @brief Searches for a large allocation record matching the given pointer.
+ *
+ * Iterates through the list of large allocations to find the allocation whose memory pointer matches the specified address.
+ *
+ * @param ptr Pointer to the memory block to search for.
+ * @return Pointer to the corresponding large_alloc_t record, or NULL if not found.
+ */
 static large_alloc_t *get_large_alloc_by_ptr(void *ptr) {
     large_alloc_t *current = large_allocations;
     while (current != NULL) {
@@ -152,12 +185,28 @@ void *alloc_from_slab(struct slab *slab) {
     return object;
 }
 
+/**
+ * @brief Frees an object back to the specified slab's free list.
+ *
+ * Returns the given object to the slab, making it available for future allocations.
+ *
+ * @param slab Pointer to the slab from which the object was originally allocated.
+ * @param object Pointer to the object being freed.
+ */
 void slab_free(struct slab *slab, void *object){
     *(void **)object = slab->free_list;
     slab->free_list = object;
     slab->free_count++;
 }
 
+/**
+ * @brief Allocates and initializes a new slab for objects of the specified size.
+ *
+ * Reserves a physical memory block, maps it to virtual memory, and sets up the slab structure for use in the slab allocator.
+ *
+ * @param object_size Size of each object to be stored in the slab.
+ * @return Pointer to the initialized slab structure.
+ */
 struct slab *create_slab(size_t object_size){
     assert(current_heap_addr <= KERNEL_BASE_HEAP_ADDR + KERNEL_HEAP_SIZE);
     //todo handle alocation of not continous memory
@@ -174,6 +223,14 @@ struct slab *create_slab(size_t object_size){
     return slab;
 }
 
+/**
+ * @brief Returns the smallest cache capable of holding objects of the given size.
+ *
+ * Searches the available caches and returns a pointer to the first cache whose object size is greater than or equal to the requested size. Returns NULL if no suitable cache exists.
+ *
+ * @param size The minimum object size required.
+ * @return Pointer to a suitable cache, or NULL if none found.
+ */
 static struct cache *get_cache(size_t size) {
     for (size_t i = 0; i < NUM_CACHES; i++) {
         if (caches[i].object_size >= size) {
@@ -183,6 +240,12 @@ static struct cache *get_cache(size_t size) {
     return NULL;
 }
 
+/**
+ * @brief Returns the index of the smallest slab size that can accommodate the given size.
+ *
+ * @param size The requested allocation size in bytes.
+ * @return int8_t Index of the appropriate slab size, or -1 if no suitable slab exists.
+ */
 static int8_t get_slab_index(size_t size)
 {
     static const size_t block_sizes[] = {16, 32, 64, 128, 256, 512, 1024, 2048};
@@ -195,6 +258,14 @@ static int8_t get_slab_index(size_t size)
 }
 
 
+/**
+ * @brief Allocates an object from the specified cache.
+ *
+ * Attempts to allocate an object from the existing slabs in the cache. If all slabs are full or none exist, creates a new slab and allocates an object from it.
+ *
+ * @param cache Pointer to the cache from which to allocate an object.
+ * @return Pointer to the allocated object, or NULL if allocation fails.
+ */
 void* alloc_from_cache(struct cache* cache)
 {
     struct slab* curr_slab = cache->slabs;
@@ -220,11 +291,15 @@ void* alloc_from_cache(struct cache* cache)
     return alloc_from_slab(new_slab);
 }
 
-/*
-* This function is called when the size is larger than the maximum cache size.
-* It round up the size to the nearest multiple of PMM_BLOCK_SIZE and al
-* @param size The size of the memory to allocate.
-* @return A pointer to the allocated memory, or NULL if allocation failed.
+/**
+ * @brief Allocates a large memory block using page-aligned physical frames.
+ *
+ * Rounds the requested size up to the nearest multiple of the physical memory block size,
+ * allocates and maps the required number of pages in the large allocation heap region,
+ * and tracks the allocation in the large allocations list. Returns NULL if allocation fails.
+ *
+ * @param size Number of bytes to allocate.
+ * @return Pointer to the allocated memory block, or NULL on failure.
  */
 static void* kmalloc_large(size_t size)
 {
@@ -249,6 +324,14 @@ static void* kmalloc_large(size_t size)
     return ptr;
 }
 
+/**
+ * @brief Frees a large memory allocation previously allocated by kmalloc_large.
+ *
+ * Unmaps all pages associated with the given pointer and removes the allocation from the large allocations list.
+ *
+ * @param ptr Pointer to the start of the large allocation to free.
+ * @return true if the allocation was found and freed; false if the pointer is NULL or not tracked as a large allocation.
+ */
 static bool _kmalloc_large_free(void *ptr)
 {
     if (ptr == NULL)
@@ -268,6 +351,14 @@ static bool _kmalloc_large_free(void *ptr)
 }
 
 
+/**
+ * @brief Allocates a block of memory of the specified size from the kernel heap.
+ *
+ * Selects the appropriate allocation strategy based on the requested size: uses a slab allocator for small allocations and a separate large allocation mechanism for sizes exceeding the maximum cache size. Panics if no suitable cache is found for the requested size.
+ *
+ * @param size Number of bytes to allocate.
+ * @return Pointer to the allocated memory block, or NULL if allocation fails for large requests.
+ */
 void* kmalloc(size_t size)
 {
     if(size > MAX_CACHE_SIZE) // less likely
@@ -280,6 +371,13 @@ void* kmalloc(size_t size)
     return alloc_from_cache(cache);
 }
 
+/**
+ * @brief Frees memory previously allocated by kmalloc.
+ *
+ * Determines whether the pointer refers to a large allocation or a slab allocation and frees it accordingly. Does nothing if the pointer is NULL.
+ *
+ * @param ptr Pointer to the memory block to free.
+ */
 void kfree(void *ptr) {
     if (ptr == NULL)
         return;
@@ -292,6 +390,11 @@ void kfree(void *ptr) {
 }
 
 
+/**
+ * @brief Initializes the kernel memory allocator and its caches.
+ *
+ * Sets up the initial heap addresses and creates the first slab for each cache size category. Panics if slab allocation fails.
+ */
 void init_kmalloc() {
     // The heap is already mapped in the vmm_init function
     current_heap_addr = KERNEL_BASE_HEAP_ADDR;

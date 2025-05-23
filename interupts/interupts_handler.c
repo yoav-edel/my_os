@@ -67,6 +67,13 @@ void cpu_handler(registers_t *regs)
     }
 }
 
+/**
+ * @brief Dispatches hardware and CPU interrupts to their appropriate handlers.
+ *
+ * Determines the type of interrupt based on the interrupt number in the provided register state and calls the corresponding handler for keyboard, page fault, PIT timer, or CPU exceptions. Prints a message for unknown interrupts.
+ *
+ * @param regs Pointer to the register state at the time of the interrupt.
+ */
 void isr_handler(registers_t *regs) {
     // todo maybe add sainty checks
     if (regs->int_no == KEYBOARD_ISR)

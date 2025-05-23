@@ -1,5 +1,3 @@
-
-
 #include "drivers/screen.h"
 #include "shell.h"
 #include "interupts/idt.h"
@@ -14,6 +12,11 @@
 #include "processes/process.h"
 
 
+/**
+ * @brief Tests the kernel memory allocator by allocating and freeing memory.
+ *
+ * Allocates 16 bytes of memory using the kernel memory allocator and then frees it to verify basic allocation and deallocation functionality.
+ */
 void test_kmalloc() {
     init_kmalloc();
     char *str = kmalloc(16);
@@ -30,6 +33,11 @@ void test_pmm() {
     printf("Freed frame at: %p\n", addr);
 }
 
+/**
+ * @brief Entry point for the kernel, performing system initialization.
+ *
+ * Initializes core kernel subsystems including descriptor tables, interrupt controllers, disk driver, memory managers, and enables CPU interrupts. Clears the screen, prints a startup message, runs memory management tests, and enters an idle loop.
+ */
 void kernel_main() {
     init_gdt();
     init_idt();

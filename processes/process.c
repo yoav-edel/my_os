@@ -15,6 +15,12 @@
 
 #define PROCESS_NAME_MAX_LENGTH 32
 
+/**
+ * @brief Prints detailed information about a process.
+ *
+ * Outputs the process's name, PID, priority, PCB details, and virtual memory context address.
+ * Panics if the provided process pointer is NULL.
+ */
 void process_print(process_t *process) {
     if(process == NULL)
         panic("Trying to print a NULL process, what the hell are you doing?");
@@ -25,6 +31,12 @@ void process_print(process_t *process) {
     printf("Process VM Context at %p\n", process->pcb->vm_context);
 }
 
+/**
+ * @brief Releases all resources associated with a process.
+ *
+ * Frees the process control block, releases the process ID, and deallocates the process structure.
+ * If the process pointer is NULL, the function returns immediately.
+ */
 void process_destroy(process_t *process) {
   	if(process == NULL)
           return;
@@ -33,6 +45,14 @@ void process_destroy(process_t *process) {
   	kfree(process);
 }
 
+/**
+ * @brief Allocates and sets up the user stack for a process.
+ *
+ * Allocates physical memory pages for the process's stack, maps them into the process's virtual memory context, zeroes the stack memory, and builds an initial trap frame with default register values and the process entry point. Updates the process's stack pointer to point to the new trap frame. Returns immediately if the process pointer is NULL.
+ *
+ * @param process The process for which to create the stack.
+ * @param stack_size The desired stack size in bytes; rounded up to a multiple of the page size.
+ */
 void process_create_stack(process_t *process, uint32_t stack_size)
 {
     if (!process)
@@ -83,6 +103,17 @@ void process_create_stack(process_t *process, uint32_t stack_size)
     process->pcb->context->esp = esp_frame;
 }
 
+/**
+ * @brief Creates a new process with the specified entry point, name, priority, and parent.
+ *
+ * Allocates and initializes a process structure, sets up its process control block (PCB) using the parent's virtual memory context, creates a user stack, assigns a PID, and copies the process name. Returns NULL if the parent is NULL or if any allocation fails.
+ *
+ * @param entry_point Function pointer to the process's entry point.
+ * @param name Name of the process (truncated to maximum allowed length).
+ * @param priority Priority level for scheduling.
+ * @param parent Parent process whose VM context is inherited.
+ * @return Pointer to the newly created process, or NULL on failure.
+ */
 process_t *process_create(void (*entry_point)(), char *name, priority_t priority, process_t *parent) {
     if(parent == NULL)
 		return NULL;
@@ -104,6 +135,11 @@ process_t *process_create(void (*entry_point)(), char *name, priority_t priority
 }
 
 
+/**
+ * @brief Initializes the initial kernel process and scheduler.
+ *
+ * Allocates and sets up the kernel's initial process ("kernel_init"), including its virtual memory context, PCB, PID, name, and priority. Initializes the scheduler with this process as the starting point. Panics if memory allocation fails.
+ */
 void processes_init() {
 	// Map the running kernel process to the current process
     process_t *proc = kmalloc(sizeof(process_t));

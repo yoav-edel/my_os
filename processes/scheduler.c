@@ -28,6 +28,15 @@ static process_queue_t ready_queue = {NULL, NULL, 0};
 static process_queue_node_t *current_process_node = NULL;
 process_t *current_process = NULL;
 
+/**
+ * @brief Allocates and initializes a new process queue node.
+ *
+ * Creates a new node for the process queue, assigning the given process and initializing the next pointer to NULL.
+ * Panics if memory allocation fails.
+ *
+ * @param process Pointer to the process to associate with the new node.
+ * @return Pointer to the newly created process queue node.
+ */
 static process_queue_node_t *scheduler_create_queue_node(process_t *process) {
     process_queue_node_t *node = (process_queue_node_t *) kmalloc(sizeof(process_queue_node_t));
     if (node == NULL)
@@ -39,10 +48,21 @@ static process_queue_node_t *scheduler_create_queue_node(process_t *process) {
     return node;
 }
 
+/**
+ * @brief Frees the memory allocated for a process queue node.
+ *
+ * @param node Pointer to the process queue node to be destroyed.
+ */
 static inline void scheduler_destroy_queue_node(process_queue_node_t *node) {
     kfree(node);
 }
 
+/**
+ * @brief Adds a process to the scheduler's ready queue.
+ *
+ * Inserts the given process into the circular ready queue for round-robin scheduling.
+ * Panics if the process pointer is NULL.
+ */
 void scheduler_add_process(process_t *process) {
     if (process == NULL)
         panic("Tried to add a NULL process to the scheduler, you sneaky bastard (probably a bug in the kernel)");
@@ -60,6 +80,13 @@ void scheduler_add_process(process_t *process) {
     ready_queue.count++;
 }
 
+/**
+ * @brief Advances to and returns the next process in the ready queue.
+ *
+ * Moves the current process node pointer to the next node in the circular ready queue and returns the associated process. Panics if the scheduler is in an invalid state.
+ *
+ * @return Pointer to the next process in the ready queue, or NULL if the queue is empty.
+ */
 process_t *scheduler_get_next_process() {
     if (ready_queue.head == NULL)
         return NULL;
@@ -74,6 +101,13 @@ process_t *scheduler_get_next_process() {
     return current_process_node->process;
 }
 
+/**
+ * @brief Removes a specified process from the ready queue.
+ *
+ * If the process is found in the ready queue, it is removed and the queue's structure is updated accordingly. Handles empty, single-element, and multi-element queue cases. If the removed process is the current process node, advances or clears the current process node pointer as appropriate.
+ *
+ * @param process Pointer to the process to remove from the ready queue.
+ */
 void scheduler_remove_process(process_t *process) {
     // Handle empty queue case
     if (ready_queue.head == NULL || process == NULL) {
@@ -124,6 +158,12 @@ void scheduler_remove_process(process_t *process) {
 
 static uint32_t tick_count = 0;
 #define TICKS_UNTIL_SWITCH 10 // Changed from 30 to 10
+/**
+ * @brief Handles a scheduler tick and performs a context switch if needed.
+ *
+ * Increments the scheduler's tick counter and, after a defined number of ticks,
+ * switches to the next process in the ready queue if it differs from the current process.
+ */
 void scheduler_handle_tick(){
     tick_count++;
     if(tick_count >= TICKS_UNTIL_SWITCH){
@@ -137,10 +177,20 @@ void scheduler_handle_tick(){
 
 }
 
+/**
+ * @brief Returns the currently running process.
+ *
+ * @return Pointer to the process currently scheduled to run, or NULL if no process is active.
+ */
 process_t *scheduler_get_current_process() {
     return current_process;
 }
 
+/**
+ * @brief Initializes the process scheduler with the initial process.
+ *
+ * Adds the initial process to the ready queue, sets it as the current process, and prepares the scheduler for operation. Panics if the initial process is NULL.
+ */
 void scheduler_init(process_t *init_process) {
     if (init_process == NULL)
         panic("Tried to initialize the scheduler with a NULL process, you sneaky bastard (probably a bug in the kernel)");

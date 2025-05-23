@@ -7,6 +7,11 @@
 
 static void mask_all_except_keyboard();
 
+/**
+ * @brief Sends an End of Interrupt (EOI) signal to the master PIC.
+ *
+ * Notifies the master Programmable Interrupt Controller that the current interrupt has been handled, allowing it to process further interrupts.
+ */
 void pic_send_ack() {
     outb(PIC1_COMMAND, PCI_EOI);
 }

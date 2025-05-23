@@ -26,6 +26,11 @@ static void rm_last_char_buffer()
     buffer_head = (buffer_head - 1) % BUFFER_SIZE;
 }
 
+/**
+ * @brief Handles keyboard interrupts by processing the received scancode.
+ *
+ * Reads a scancode from the keyboard data port, processes it, and sends an acknowledgment to the programmable interrupt controller (PIC).
+ */
 void keyboard_handler()
 {
     uint8_t scancode = inb(KEYBOARD_DATA_PORT);
