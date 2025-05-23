@@ -19,15 +19,17 @@ BUILD_DIR = build
 ISO_DIR = iso/boot
 GRUB_DIR = $(ISO_DIR)/grub
 MEMORY_DIR = memory
+PROCESS_DIR = processes
 
 # Files
-ASM_FILES = $(SRC_DIR)multiboot.asm $(SRC_DIR)start.asm $(INTERRUPTS_DIR)/isr_stubs.asm
+ASM_FILES = $(SRC_DIR)multiboot.asm $(SRC_DIR)start.asm $(INTERRUPTS_DIR)/isr_stubs.asm $(PROCESS_DIR)/context_switch.asm
 C_FILES = $(SRC_DIR)kernel.c \
           $(STD_DIR)/stdlib.c \
           $(STD_DIR)/assert.c \
           $(STD_DIR)/string.c \
           $(DRIVERS_DIR)/screen.c \
           $(DRIVERS_DIR)/keyboard.c \
+          $(DRIVERS_DIR)/pit.c \
           $(SRC_DIR)shell.c \
           $(INTERRUPTS_DIR)/pic.c \
           $(INTERRUPTS_DIR)/idt.c \
@@ -39,7 +41,11 @@ C_FILES = $(SRC_DIR)kernel.c \
           $(MEMORY_DIR)/pmm.c \
           $(MEMORY_DIR)/kmalloc.c \
           $(SRC_DIR)/errors.c \
-          $(STD_DIR)/stdio.c
+          $(STD_DIR)/stdio.c \
+          $(PROCESS_DIR)/pcb.c \
+          $(PROCESS_DIR)/pid.c \
+          $(PROCESS_DIR)/process.c \
+          $(PROCESS_DIR)/scheduler.c
 
 OBJS = $(ASM_FILES:.asm=.o) $(C_FILES:.c=.o)
 

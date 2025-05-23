@@ -30,7 +30,7 @@ void keyboard_handler()
 {
     uint8_t scancode = inb(KEYBOARD_DATA_PORT);
     handle_scancode(scancode);
-    send_ack_keyboard();
+    pic_send_ack();
 }
 
 static bool shift_pressed = false;

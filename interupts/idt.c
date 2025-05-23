@@ -63,7 +63,7 @@ extern void isr28();
 extern void isr29();
 extern void isr30();
 extern void isr31();
-
+extern void isr32();
 extern void isr33();
 
 void init_idt_entries() {
@@ -99,8 +99,8 @@ void init_idt_entries() {
     idt_set_gate(29, (uint32_t)isr29, KERNEL_CODE_SELECTOR, IDT_ATTR_KERNEL);
     idt_set_gate(30, (uint32_t)isr30, KERNEL_CODE_SELECTOR, IDT_ATTR_KERNEL);
     idt_set_gate(31, (uint32_t)isr31, KERNEL_CODE_SELECTOR, IDT_ATTR_KERNEL);
-    // add the keyboard isr
-    idt_set_gate(33, (uint32_t) isr33, KERNEL_CODE_SELECTOR, IDT_ATTR_KERNEL);
+    idt_set_gate(32, (uint32_t) isr32, KERNEL_CODE_SELECTOR, IDT_ATTR_KERNEL); // pit
+    idt_set_gate(33, (uint32_t) isr33, KERNEL_CODE_SELECTOR, IDT_ATTR_KERNEL); // keyboard
 
 
 
@@ -122,7 +122,9 @@ void init_idt_ptr()
 }
 
 
-
+void idt_irq_install_handler(int irq, void (*handler)(void)) {
+    idt_set_gate(irq, (uint32_t) handler, KERNEL_CODE_SELECTOR, IDT_ATTR_KERNEL);
+}
 
 
 void load_idt() {

@@ -43,6 +43,11 @@ typedef struct {
     page_entry_t tables[ENTRIES_PER_TABLE];
 } __attribute__((aligned(PAGE_SIZE))) page_directory_t;
 
+typedef struct{
+  page_directory_t *page_dir; // The virtual address of the page directory
+   physical_addr page_dir_phys_addr; // The physical address of the page directory
+} vm_context_t;
+
 #define TABLES_PER_DIR 1024
 #define PAGE_TABLE_SIZE 1024
 #define PRESENT 0x1 // page present in memory
@@ -56,7 +61,7 @@ typedef struct {
 #define GLOBAL 0x100 // global page. TLB entries are not invalidated on CR3 writes
 #define SWAPPED 0x200 // page is swapped
 #define EMPTY_USER_PAGE_DIR_FLAGS (PAGE_WRITEABLE | PAGE_USER)
-#define KERNEL_PAGE_FLAGS (PAGE_WRITEABLE | PRESENT)
+#define KERNEL_PAGE_FLAGS (PAGE_WRITEABLE | PRESENT | GLOBAL)
 
 
 #define ALIGN_TO_PAGE(addr) ((addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1))
@@ -65,8 +70,13 @@ typedef struct {
 
 
 void vmm_init();
-void vmm_switch_page_directory(page_directory_t *dir);
-
+void vmm_switch_vm_context(vm_context_t *vm_context);
+physical_addr vmm_calc_phys_addr(void *vir_addr);
+vm_context_t *vmm_create_vm_context(page_directory_t *page_dir);
+void vmm_destroy_vm_context(vm_context_t *vm_context);
 void page_fault_handler(uint32_t error_code);
-void vmm_map_page(void *vir_addr, physical_addr frame_addr, uint32_t flags);
+void vmm_map_page(page_directory_t *page_dir, void *vir_addr, physical_addr frame_addr, uint32_t flags);
+void vmm_map_page_to_curr_dir(void *vir_addr, physical_addr frame_addr, uint32_t flags);
+void vmm_unmap_page(void *vir_addr);
+page_directory_t *vmm_get_kernel_page_directory();
 #endif // VMM_H

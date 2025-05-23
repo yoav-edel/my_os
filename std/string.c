@@ -37,3 +37,24 @@ int strncmp(const char *str1, const char *str2, int n) {
     return str1[i] - str2[i];
 }
 
+char *strcpy(char *dest, const char *src) {
+    int i = 0;
+    while (src[i] != '\0') {
+        dest[i] = src[i];
+        i++;
+    }
+    dest[i] = '\0';
+    return dest;
+}
+
+char *strncpy(char *dest, const char *src, int n) {
+    int i;
+    for (i = 0; i < n && src[i] != '\0'; i++) {
+        dest[i] = src[i];
+    }
+    // Null-pad the remainder of dest if src is shorter than n
+    for ( ; i < n; i++) {
+        dest[i] = '\0';
+    }
+    return dest;
+}
