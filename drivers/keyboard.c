@@ -23,7 +23,7 @@ static void rm_last_char_buffer()
 {
     if(buffer_head == buffer_tail)
         return;
-    buffer_head = (buffer_head - 1) % BUFFER_SIZE;
+    buffer_head = (buffer_head - 1 + BUFFER_SIZE) % BUFFER_SIZE;
 }
 
 void keyboard_handler()
@@ -86,8 +86,14 @@ void handle_scancode(uint8_t scancode)
 }
 
 void keyboard_buffer_put(char c) {
+    uint8_t next_head = (buffer_head + 1) % BUFFER_SIZE;
+    if (next_head == buffer_tail) {
+        // Buffer is full, drop the character or overwrite oldest
+        // For now, we'll overwrite the oldest character
+        buffer_tail = (buffer_tail + 1) % BUFFER_SIZE;
+    }
     keyboard_buffer[buffer_head] = c;
-    buffer_head = (buffer_head + 1) % BUFFER_SIZE;
+    buffer_head = next_head;
 }
 
 void set_put_on_screen(bool value)
