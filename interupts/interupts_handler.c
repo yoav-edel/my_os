@@ -51,7 +51,13 @@ void cpu_handler(registers_t *regs)
 {
     put_char('\n'); // New line for better visibility
     put_string("Exception: ");
-    put_string(exception_messages[regs->int_no]);
+    
+    // Bounds check to prevent buffer overflow
+    if (regs->int_no < sizeof(exception_messages) / sizeof(exception_messages[0])) {
+        put_string(exception_messages[regs->int_no]);
+    } else {
+        put_string("Unknown Exception");
+    }
     put_char('\n');
 
     // Print the interrupt number for debugging

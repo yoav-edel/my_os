@@ -87,7 +87,7 @@ ISR_NO_ERR_CODE 26   ; Reserved
 ISR_NO_ERR_CODE 27   ; Reserved
 ISR_NO_ERR_CODE 28   ; Reserved
 ISR_NO_ERR_CODE 29   ; Reserved
-ISR_NO_ERR_CODE 30   ; Security Exception
+ISR_NO_ERR_CODE 30   ; Reserved
 ISR_NO_ERR_CODE 31   ; Reserved
 ISR_NO_ERR_CODE 32   ; Reserved
 ISR_NO_ERR_CODE 33   ; Keyboard Interrupt
