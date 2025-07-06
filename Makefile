@@ -93,7 +93,7 @@ SIMPLE_TEST_OBJS = $(SIMPLE_TEST_ASM_FILES:.asm=.o) $(SIMPLE_TEST_C_FILES:.c=.o)
 SIMPLE_TEST_KERNEL = simple_test_kernel.bin
 SIMPLE_TEST_ISO = simple_test_kernel.iso
 
-.PHONY: all clean run debug create-disk test test-run test-clean simple-test simple-test-run
+.PHONY: all clean run debug create-disk test test-run test-clean simple-test simple-test-run host-test
 
 all: $(ISO) $(DISK_IMG)
 
@@ -197,4 +197,11 @@ simple-test: $(SIMPLE_TEST_ISO) $(DISK_IMG)
 # Just run simple tests (if already built)
 simple-test-run: $(SIMPLE_TEST_ISO) $(DISK_IMG)
 	qemu-system-i386 -cdrom $(SIMPLE_TEST_ISO) -drive file=disk.img,format=raw,if=ide,index=0,media=disk -serial stdio
+
+# Build and run host-based test verification
+host-test: $(TESTS_DIR)/host_test_verifier.c
+	@echo "Building and running host-based test framework verification..."
+	gcc -o $(TESTS_DIR)/host_test_verifier $(TESTS_DIR)/host_test_verifier.c
+	$(TESTS_DIR)/host_test_verifier
+	@echo "Host test verification completed successfully!"
 
