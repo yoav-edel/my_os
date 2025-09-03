@@ -10,8 +10,7 @@
 #include "../std/stdint.h"
 #include "../std/stdbool.h"
 
-typedef uint32_t disk_addr;
-#define NO_SLOT_AVAILABLE 0
+#define DISK_NO_SLOT_AVAILABLE 0
 // Register offsets from the base I/O port
 #define ATA_REG_DATA          0x0
 #define ATA_REG_ERR           0x1 // Error register (read) / Features register (write)
@@ -83,9 +82,9 @@ bool identify_drive(uint16_t base_port, uint8_t drive, identifyDeviceData *data)
 /*
  *
  */
-bool ata_read_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_count, void *buffer);
+bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const uint8_t sector_count, void *buffer);
 
-bool ata_write_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_count, void *buffer);
+bool ata_write_sectors(uint8_t disk_num, uint32_t lba_address, uint8_t sector_count, void *buffer);
 
 /**
  * Prints the Master Boot Record (MBR) of the specified disk.
@@ -102,15 +101,13 @@ void test_disk_driver();
 void switch_disk(uint8_t disk_num);
 
 #define DISK_NO_SLOT_AVAILABLE 0
-disk_addr disk_alloc_slot();
+uint32_t disk_alloc_slot();
 
-void disk_free_slot(disk_addr slot);
+void disk_free_slot(uint32_t slot);
 
-size_t disk_write(disk_addr addr, const void *buffer, size_t len);
+size_t disk_write(void *addr, const void *buffer, size_t len);
 
-size_t disk_read(disk_addr addr, const void *buffer, size_t len);
+size_t disk_read(void *addr, const void *buffer, size_t len);
 
 
 #endif // DISK_H
-
-

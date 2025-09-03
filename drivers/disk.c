@@ -5,12 +5,13 @@
 #include "../std/stdio.h"
 /*
  * Explanation about the delay that appears sometimes in the code:
- * According to the ATA specifications, after selecting a new drive (Master/Slave), a short delay of 400ns is required before reading the Status Register.
+ * According to the ATA specifications, after selecting a new drive (Master/Slave),
+ * a short delay of 400ns is required before reading the Status Register.
  * This is because some drives take time to assert their status onto the bus.
  * And the recommended approach is to read the Status Register 15 times, but only use the last value.
  * Since each I/O read takes about 30ns, this results in a 420ns delay, allowing the drive enough time to update.
- * Also after sending a command to the Command Register, it is recommended to read the Alternate Status Register four times
- * beacuse ofcurse whoever design it made it possible thatERR or DF bits are incorrect just to screw with me to more.
+ * Also after sending a command to the Command Register, it is recommended to read the Alternate Status Register
+ * four times because ofcurse whoever design it made it possible thatERR or DF bits are incorrect just to screw with me to more.
  * If you find a place that i put the delay and you think its not needed please let me know.
 
  */
@@ -30,19 +31,18 @@ static identifyDeviceData *disks[4] = {&disk1, &disk2, &disk3, &disk4};
 static uint8_t disk_bitmap[DISK_BITMAP_SIZE] = {0};
 
 
-inline static bool disk_is_free(disk_addr slot) {
+inline static bool disk_is_free(const uint32_t slot) {
     return disk_bitmap[slot] == 0;
 }
 
-inline static void disk_mark_used(disk_addr slot) {
+inline static void disk_mark_used(const uint32_t slot) {
     disk_bitmap[slot] = 1;
 }
 
 // allocate via next fit algorithm
 static size_t last_alloc_index = 1;
 
-disk_addr disk_alloc_slot() {
-
+uint32_t disk_alloc_slot() {
     // Next-fit search: from last_alloc_index to the end
     for (size_t i = last_alloc_index; i < DISK_BITMAP_SIZE; i++) {
         for (uint8_t j = 0; j < 8; j++) {
@@ -56,10 +56,12 @@ disk_addr disk_alloc_slot() {
 
     // Wrap-around search: from beginning to last_alloc_index
     for (size_t i = 1; i < last_alloc_index; i++) {
-        if (disk_is_free(i)) {
-            disk_mark_used(i);
-            last_alloc_index = i;
-            return i;
+        for (uint8_t j = 0; j < 8; j++) {
+            if (!(disk_bitmap[i] & (1 << j))) {
+                disk_bitmap[i] |= (1 << j);
+                last_alloc_index = i;
+                return i * 8 + j;
+            }
         }
     }
 
@@ -68,7 +70,7 @@ disk_addr disk_alloc_slot() {
 }
 
 
-inline static void disk_mark_free(disk_addr slot) {
+inline static void disk_mark_free(const uint32_t slot) {
     disk_bitmap[slot / 8] = disk_bitmap[slot / 8] & ~(1 << (slot % 8));
 }
 
@@ -76,7 +78,7 @@ inline static void disk_mark_free(disk_addr slot) {
  * Free a previously allocated disk slot.
  * Marks the slot as free in the bitmap and updates the last_free_slot.
  */
-void disk_free_slot(disk_addr slot) {
+void disk_free_slot(const uint32_t slot) {
     disk_mark_free(slot);
 }
 
@@ -90,24 +92,24 @@ void disk_free_slot(disk_addr slot) {
  * 4. The highest 4 bits
  *
  */
-static inline uint8_t get_lba_low(uint32_t lba) {
+static inline uint8_t get_lba_low(const uint32_t lba) {
     return (uint8_t)lba;
 }
 
-static inline uint8_t get_lba_mid(uint32_t lba) {
+static inline uint8_t get_lba_mid(const uint32_t lba) {
     return (uint8_t)(lba >> 8);
 }
 
-static inline uint8_t get_lba_high(uint32_t lba) {
+static inline uint8_t get_lba_high(const uint32_t lba) {
     return (uint8_t)(lba >> 16);
 }
 
 
-static inline uint8_t get_lba_highest(uint32_t lba) {
+static inline uint8_t get_lba_highest(const uint32_t lba) {
     return (uint8_t)(lba >> 24) & 0x0F;
 }
 
-static inline bool is_lba_supported(identifyDeviceData *disk) {
+static inline bool is_lba_supported(const identifyDeviceData *disk) {
     return disk->capabilities[0] & (1 << 9);
 }
 
@@ -330,7 +332,7 @@ bool identify_drive(uint16_t base_port, uint8_t drive, identifyDeviceData *data)
  * @param buffer        The buffer to store the data.
  * @return              true if the operation was successful, false otherwise.
  */
-bool ata_read_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_count, void *buffer) {
+bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const uint8_t sector_count, void *buffer) {
     if (disk_num >= sizeof(disks) / sizeof(disks[0]))
         return false;
 
@@ -411,7 +413,7 @@ bool ata_read_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_co
  * @param buffer        The buffer containing the data.
  * @return              true if the operation was successful, false otherwise.
  */
-bool ata_write_sectors(uint8_t disk_num, disk_addr lba_address, uint8_t sector_count, void *buffer) {
+bool ata_write_sectors(uint8_t disk_num, uint32_t lba_address, uint8_t sector_count, void *buffer) {
     if (disk_num >= sizeof(disks) / sizeof(disks[0]))
         return false;
 
@@ -537,7 +539,7 @@ void switch_disk(uint8_t num) {
  * Returns the number of bytes read on success (which will be len if no errors occur),
  * or 0 if an error is encountered.
  */
-size_t disk_read(disk_addr addr, const void *buffer, size_t len) {
+size_t disk_read(void *addr, const void *buffer, size_t len) {
     size_t total_read = 0;
 
     /* Get disk info for current disk (curr_disk is assumed global) */
@@ -561,7 +563,7 @@ size_t disk_read(disk_addr addr, const void *buffer, size_t len) {
             sectors_this_call = total_sectors;
 
         /* Read sectors from the disk */
-        if (!ata_read_sectors(curr_disk, addr, sectors_this_call, temp_buffer))
+        if (!ata_read_sectors(curr_disk, (uint32_t) addr, sectors_this_call, temp_buffer))
             return total_read;
 
 
@@ -592,7 +594,7 @@ size_t disk_read(disk_addr addr, const void *buffer, size_t len) {
  *
  */
 
-size_t disk_write(disk_addr addr, const void *buffer, size_t len) {
+size_t disk_write(void *addr, const void *buffer, size_t len) {
     size_t total_written = 0;
 
     /* Get disk info for current disk (curr_disk is assumed global) */
@@ -630,9 +632,9 @@ size_t disk_write(disk_addr addr, const void *buffer, size_t len) {
 
     if (len % disk->logical_sector_size) {
         // the last sector is not full so need to read it and write it back to make sure we dont overwrite data
-        disk_addr last_sector = addr;
+        void *last_sector = addr;
         uint8_t temp_buffer[disk->logical_sector_size];
-        if (!ata_read_sectors(curr_disk, last_sector, 1, temp_buffer))
+        if (!ata_read_sectors(curr_disk, (uint32_t) last_sector, 1, temp_buffer))
             return total_written;
         memcpy(temp_buffer, (uint8_t *) buffer + total_written, len % disk->logical_sector_size);
         if (!ata_write_sectors(curr_disk, last_sector, 1, temp_buffer))
@@ -640,4 +642,3 @@ size_t disk_write(disk_addr addr, const void *buffer, size_t len) {
     }
     return len;
 }
-
