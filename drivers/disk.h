@@ -84,7 +84,7 @@ bool identify_drive(uint16_t base_port, uint8_t drive, identifyDeviceData *data)
  */
 bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const uint8_t sector_count, void *buffer);
 
-bool ata_write_sectors(uint8_t disk_num, uint32_t lba_address, uint8_t sector_count, void *buffer);
+bool ata_write_sectors(uint8_t disk_num, const uint32_t lba_address, const uint8_t sector_count, void *buffer);
 
 /**
  * Prints the Master Boot Record (MBR) of the specified disk.
@@ -105,9 +105,9 @@ uint32_t disk_alloc_slot();
 
 void disk_free_slot(uint32_t slot);
 
-size_t disk_write(uint32_t addr, const void *buffer, size_t len);
+size_t disk_write(uint32_t addr, const void *buffer, const size_t len);
 
-size_t disk_read(uint32_t addr, const void *buffer, size_t len);
+size_t disk_read(uint32_t addr, void *buffer, const size_t len);
 
 
 #endif // DISK_H
