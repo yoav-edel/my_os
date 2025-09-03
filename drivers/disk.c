@@ -31,12 +31,13 @@ static identifyDeviceData *disks[4] = {&disk1, &disk2, &disk3, &disk4};
 static uint8_t disk_bitmap[DISK_BITMAP_SIZE] = {0};
 
 
-inline static bool disk_is_free(const uint32_t slot) {
-    return disk_bitmap[slot] == 0;
+inline static bool is_slot_free(const uint32_t slot) {
+    return !(disk_bitmap[slot / 8] & (1 << (slot % 8)));
 }
 
+
 inline static void disk_mark_used(const uint32_t slot) {
-    disk_bitmap[slot] = 1;
+    disk_bitmap[slot / 8] |= (1 << (slot % 8));
 }
 
 // allocate via next fit algorithm
@@ -46,10 +47,11 @@ uint32_t disk_alloc_slot() {
     // Next-fit search: from last_alloc_index to the end
     for (size_t i = last_alloc_index; i < DISK_BITMAP_SIZE; i++) {
         for (uint8_t j = 0; j < 8; j++) {
-            if (!(disk_bitmap[i] & (1 << j))) {
-                disk_bitmap[i] |= (1 << j);
+            uint32_t slot = i * 8 + j;
+            if (is_slot_free(slot)) {
+                disk_mark_used(slot);
                 last_alloc_index = i;
-                return i * 8 + j;
+                return slot;
             }
         }
     }
@@ -57,10 +59,11 @@ uint32_t disk_alloc_slot() {
     // Wrap-around search: from beginning to last_alloc_index
     for (size_t i = 1; i < last_alloc_index; i++) {
         for (uint8_t j = 0; j < 8; j++) {
-            if (!(disk_bitmap[i] & (1 << j))) {
-                disk_bitmap[i] |= (1 << j);
+            uint32_t slot = i * 8 + j;
+            if (is_slot_free(slot)) {
+                disk_mark_used(slot);
                 last_alloc_index = i;
-                return i * 8 + j;
+                return slot;
             }
         }
     }
@@ -352,7 +355,8 @@ bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const 
         return false;
     }
 
-    // TODO: Add optimization to check what drive is currently selected and only change if needed to avoid the delay400ns.
+    // TODO: Add optimization to check what drive is currently selected and only change if
+    // needed to avoid the delay400ns.
     // Send the highest 4 bits of the LBA, ORed with the drive selection
     outb(base_port + ATA_REG_DRIVE_SELECT, drive | get_lba_highest(lba_address));
 
@@ -430,7 +434,8 @@ bool ata_write_sectors(uint8_t disk_num, uint32_t lba_address, uint8_t sector_co
     // we are using pooling so we need to wait for the busy flag to clear
     while (!ata_wait_for_bsy(base_port));
 
-    // TODO: Add optimization to check what drive is currently selected and only change if needed to avoid the delay400ns.
+    // TODO: Add optimization to check what drive is currently selected and only change if needed
+    // to avoid the delay400ns.
     // Send the highest 4 bits of the LBA, ORed with the drive selection
     outb(base_port + ATA_REG_DRIVE_SELECT, drive | get_lba_highest(lba_address));
 
@@ -594,7 +599,7 @@ size_t disk_read(void *addr, const void *buffer, size_t len) {
  *
  */
 
-size_t disk_write(void *addr, const void *buffer, size_t len) {
+size_t disk_write(uint32_t addr, const void *buffer, size_t len) {
     size_t total_written = 0;
 
     /* Get disk info for current disk (curr_disk is assumed global) */
@@ -606,7 +611,7 @@ size_t disk_write(void *addr, const void *buffer, size_t len) {
     size_t total_sectors = len / sector_size;
 
     /* Temporary buffer to hold one sector's data */
-    uint8_t temp_buffer[sector_size * MAX_SECTORS_PER_CALL];
+    uint8_t temp_buffer[sector_size * MAX_SECTORS_PER_CALL]; //todo use kmalloc instead of using the stack
     while (total_sectors > 0) {
         uint8_t sectors_this_call;
         if (total_sectors >= MAX_SECTORS_PER_CALL)
@@ -622,7 +627,7 @@ size_t disk_write(void *addr, const void *buffer, size_t len) {
         memcpy(temp_buffer, (uint8_t *) buffer + total_written, bytes_this_call);
 
         /* Write sectors to the disk */
-        if (!ata_write_sectors(curr_disk, addr, sectors_this_call, temp_buffer))
+        if (!ata_write_sectors(curr_disk, (uint32_t) addr, sectors_this_call, temp_buffer))
             return total_written;
 
         total_written += bytes_this_call;
@@ -632,9 +637,9 @@ size_t disk_write(void *addr, const void *buffer, size_t len) {
 
     if (len % disk->logical_sector_size) {
         // the last sector is not full so need to read it and write it back to make sure we dont overwrite data
-        void *last_sector = addr;
+        uint32_t last_sector = addr;
         uint8_t temp_buffer[disk->logical_sector_size];
-        if (!ata_read_sectors(curr_disk, (uint32_t) last_sector, 1, temp_buffer))
+        if (!ata_read_sectors(curr_disk, last_sector, 1, temp_buffer))
             return total_written;
         memcpy(temp_buffer, (uint8_t *) buffer + total_written, len % disk->logical_sector_size);
         if (!ata_write_sectors(curr_disk, last_sector, 1, temp_buffer))

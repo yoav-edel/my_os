@@ -105,9 +105,9 @@ uint32_t disk_alloc_slot();
 
 void disk_free_slot(uint32_t slot);
 
-size_t disk_write(void *addr, const void *buffer, size_t len);
+size_t disk_write(uint32_t addr, const void *buffer, size_t len);
 
-size_t disk_read(void *addr, const void *buffer, size_t len);
+size_t disk_read(uint32_t addr, const void *buffer, size_t len);
 
 
 #endif // DISK_H
