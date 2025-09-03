@@ -57,7 +57,7 @@ uint32_t disk_alloc_slot() {
     }
 
     // Wrap-around search: from beginning to last_alloc_index
-    for (size_t i = 1; i < last_alloc_index; i++) {
+    for (size_t i = 0; i < last_alloc_index; i++) {
         for (uint8_t j = 0; j < 8; j++) {
             uint32_t slot = i * 8 + j;
             if (is_slot_free(slot)) {
@@ -627,7 +627,7 @@ size_t disk_write(uint32_t addr, const void *buffer, const size_t len) {
         memcpy(temp_buffer, (uint8_t *) buffer + total_written, bytes_this_call);
 
         /* Write sectors to the disk */
-        if (!ata_write_sectors(curr_disk, (uint32_t) addr, sectors_this_call, temp_buffer))
+        if (!ata_write_sectors(curr_disk, addr, sectors_this_call, temp_buffer))
             return total_written;
 
         total_written += bytes_this_call;
