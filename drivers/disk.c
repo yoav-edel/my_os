@@ -11,8 +11,8 @@
  * And the recommended approach is to read the Status Register 15 times, but only use the last value.
  * Since each I/O read takes about 30ns, this results in a 420ns delay, allowing the drive enough time to update.
  * Also after sending a command to the Command Register, it is recommended to read the Alternate Status Register
- * four times because ofcurse whoever design it made it possible thatERR or DF bits are incorrect just to screw with me to more.
- * If you find a place that i put the delay and you think its not needed please let me know.
+ * four times because ofcurse whoever design it made it possible thatERR or DF bits are incorrect just to screw
+ * with me to more. If you find a place that i put the delay and you think its not needed please let me know.
 
  */
 
@@ -613,27 +613,23 @@ size_t disk_write(uint32_t addr, const void *buffer, const size_t len) {
     /* Temporary buffer to hold one sector's data */
     uint8_t temp_buffer[sector_size * MAX_SECTORS_PER_CALL]; //todo use kmalloc instead of using the stack
     while (total_sectors > 0) {
-        uint8_t sectors_this_call;
-        if (total_sectors >= MAX_SECTORS_PER_CALL)
-            sectors_this_call = 0;
-        else
-            sectors_this_call = total_sectors;
+        uint8_t sectors_this_call = (total_sectors >= MAX_SECTORS_PER_CALL)
+                                        ? 0 // ATA: 0→256
+                                        : (uint8_t) total_sectors; // ATA: 1..255
 
-        /* Determine how many bytes to write in this call */
-        size_t bytes_this_call = sectors_this_call * sector_size;
-        if (total_written + bytes_this_call > len)
-            bytes_this_call = len - total_written;
+        const size_t sectors_xfer = (sectors_this_call == 0) ? MAX_SECTORS_PER_CALL : sectors_this_call;
+        const size_t bytes_this_call = sectors_xfer * sector_size;
 
-        memcpy(temp_buffer, (uint8_t *) buffer + total_written, bytes_this_call);
+        memcpy(temp_buffer, (const uint8_t *) buffer + total_written, bytes_this_call);
 
-        /* Write sectors to the disk */
         if (!ata_write_sectors(curr_disk, addr, sectors_this_call, temp_buffer))
             return total_written;
 
         total_written += bytes_this_call;
-        total_sectors -= sectors_this_call;
-        addr += sectors_this_call;
+        total_sectors -= sectors_xfer;
+        addr += sectors_xfer;
     }
+
 
     if (len % disk->logical_sector_size) {
         // the last sector is not full so need to read it and write it back to make sure we dont overwrite data
