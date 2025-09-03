@@ -417,7 +417,7 @@ bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const 
  * @param buffer        The buffer containing the data.
  * @return              true if the operation was successful, false otherwise.
  */
-bool ata_write_sectors(uint8_t disk_num, uint32_t lba_address, uint8_t sector_count, void *buffer) {
+bool ata_write_sectors(uint8_t disk_num, const uint32_t lba_address, const uint8_t sector_count, void *buffer) {
     if (disk_num >= sizeof(disks) / sizeof(disks[0]))
         return false;
 
@@ -544,7 +544,7 @@ void switch_disk(uint8_t num) {
  * Returns the number of bytes read on success (which will be len if no errors occur),
  * or 0 if an error is encountered.
  */
-size_t disk_read(void *addr, const void *buffer, size_t len) {
+size_t disk_read(uint32_t addr, void *buffer, const size_t len) {
     size_t total_read = 0;
 
     /* Get disk info for current disk (curr_disk is assumed global) */
@@ -599,7 +599,7 @@ size_t disk_read(void *addr, const void *buffer, size_t len) {
  *
  */
 
-size_t disk_write(uint32_t addr, const void *buffer, size_t len) {
+size_t disk_write(uint32_t addr, const void *buffer, const size_t len) {
     size_t total_written = 0;
 
     /* Get disk info for current disk (curr_disk is assumed global) */
