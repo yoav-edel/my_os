@@ -10,7 +10,7 @@
 #include "../std/stdint.h"
 #include "../std/stdbool.h"
 
-#define DISK_NO_SLOT_AVAILABLE 0
+#define DISK_NO_SLOT_AVAILABLE ((uint32_t) -1) // 0xFFFFFFFF - invalid slot
 // Register offsets from the base I/O port
 #define ATA_REG_DATA          0x0
 #define ATA_REG_ERR           0x1 // Error register (read) / Features register (write)
