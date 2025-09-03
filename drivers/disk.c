@@ -359,7 +359,7 @@ bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const 
     // needed to avoid the delay400ns.
     // Send the highest 4 bits of the LBA, ORed with the drive selection
     outb(base_port + ATA_REG_DRIVE_SELECT, drive | get_lba_highest(lba_address));
-
+    delay400ns(base_port);
 
 
     // Send the sector count
@@ -438,8 +438,7 @@ bool ata_write_sectors(uint8_t disk_num, const uint32_t lba_address, const uint8
     // to avoid the delay400ns.
     // Send the highest 4 bits of the LBA, ORed with the drive selection
     outb(base_port + ATA_REG_DRIVE_SELECT, drive | get_lba_highest(lba_address));
-
-
+    delay400ns(base_port);
 
     // Send the sector count
     outb(base_port + ATA_REG_SECCOUNT, sector_count);
@@ -533,7 +532,8 @@ void test_disk_driver(){
 static uint8_t curr_disk = 0;
 
 void switch_disk(uint8_t num) {
-    curr_disk = num;
+    if (num < 4 && disks[num]->valid)
+        curr_disk = num;
 }
 
 /*
