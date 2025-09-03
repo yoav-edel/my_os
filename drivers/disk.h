@@ -100,7 +100,6 @@ void test_disk_driver();
 
 void switch_disk(uint8_t disk_num);
 
-#define DISK_NO_SLOT_AVAILABLE 0
 uint32_t disk_alloc_slot();
 
 void disk_free_slot(uint32_t slot);
