@@ -190,8 +190,8 @@ bool vmm_swap_out_page(void *vir_addr) {
     if (!is_page_present(*e))
         return false;
 
-    uint32_t disk_slot = disk_alloc_slot();
-    if (disk_slot == NO_SLOT_AVAILABLE)
+    const uint32_t disk_slot = disk_alloc_slot();
+    if (disk_slot == DISK_NO_SLOT_AVAILABLE)
         return false;
 
     //write the page to the disk
