@@ -100,13 +100,20 @@ void test_disk_driver();
 
 void switch_disk(uint8_t disk_num);
 
-uint32_t disk_alloc_slot();
+uint32_t disk_alloc_slots(uint8_t slots_num);
+
+static inline uint32_t disk_alloc_slot() {
+    return disk_alloc_slots(1);
+}
 
 void disk_free_slot(uint32_t slot);
 
-size_t disk_write(uint32_t addr, const void *buffer, const size_t len);
+void disk_free_slots(uint32_t slot, uint8_t slots_num);
+
+size_t disk_write(uint32_t lba, const void *buffer, const size_t len);
 
 size_t disk_read(uint32_t addr, void *buffer, const size_t len);
+size_t disk_get_current_disk_logical_sector_size();
 
 
 #endif // DISK_H

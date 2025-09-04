@@ -2,23 +2,26 @@
 #include "io.h"
 #include "screen.h"
 #include "../memory/utills.h"
+#include "../memory/vmm.h"
 #include "../std/stdio.h"
 /*
  * Explanation about the delay that appears sometimes in the code:
  * According to the ATA specifications, after selecting a new drive (Master/Slave),
  * a short delay of 400ns is required before reading the Status Register.
  * This is because some drives take time to assert their status onto the bus.
- * And the recommended approach is to read the Status Register 15 times, but only use the last value.
+ * The recommended approach is to read the Status Register 15 times, but only use the last value.
  * Since each I/O read takes about 30ns, this results in a 420ns delay, allowing the drive enough time to update.
- * Also after sending a command to the Command Register, it is recommended to read the Alternate Status Register
-     * four times because of course whoever designed it made it possible that ERR or DF bits are incorrect just to screw
-     * with me even more. If you find a place that I put the delay and you think it's not needed please let me know.
+ * Also, after sending a command to the Command Register, it is recommended to read the Alternate Status Register
+ * four times because, of course, whoever designed it made it possible that ERR or DF bits are incorrect just to
+ * complicate things further. If you find a place where I put the delay and you think it's not needed, please let me know.
 
  */
 
 
 
-//todo add support when ERR flag is set.
+// TODO: Add support when ERR flag is set.
+/* TODO: Support multiple disks with page swapping - approaches can be to write to one of the reserved bits of the
+ page_entry for the disk number or only write to a single disk */
 
 static identifyDeviceData disk1 = {0};
 static identifyDeviceData disk2 = {0};
@@ -27,63 +30,87 @@ static identifyDeviceData disk4 = {0};
 
 static identifyDeviceData *disks[4] = {&disk1, &disk2, &disk3, &disk4};
 
-#define DISK_BITMAP_SIZE 100000 //todo change this to be dynamic with kmalloc and the size in the disks
+#define DISK_BITMAP_SIZE 100000 // TODO: Change this to be dynamic with kmalloc and the size in the disks
 static uint8_t disk_bitmap[DISK_BITMAP_SIZE] = {0};
-
 
 inline static bool is_slot_free(const uint32_t slot) {
     return !(disk_bitmap[slot / 8] & (1 << (slot % 8)));
 }
 
-
 inline static void disk_mark_used(const uint32_t slot) {
     disk_bitmap[slot / 8] |= (1 << (slot % 8));
 }
 
-// allocate via next fit algorithm
-static size_t last_alloc_index = 1;
-
-uint32_t disk_alloc_slot() {
-    // Next-fit search: from last_alloc_index to the end
-    for (size_t i = last_alloc_index; i < DISK_BITMAP_SIZE; i++) {
-        for (uint8_t j = 0; j < 8; j++) {
-            uint32_t slot = i * 8 + j;
-            if (is_slot_free(slot)) {
-                disk_mark_used(slot);
-                last_alloc_index = i;
-                return slot;
-            }
-        }
+static inline bool are_slots_free(const uint32_t start, const uint32_t count) {
+    const uint32_t limit = DISK_BITMAP_SIZE * 8;
+    if (start + count > limit)
+        return false;
+    for (uint32_t k = 0; k < count; k++) {
+        if (!is_slot_free(start + k)) return false;
     }
-
-    // Wrap-around search: from beginning to last_alloc_index
-    for (size_t i = 0; i < last_alloc_index; i++) {
-        for (uint8_t j = 0; j < 8; j++) {
-            uint32_t slot = i * 8 + j;
-            if (is_slot_free(slot)) {
-                disk_mark_used(slot);
-                last_alloc_index = i;
-                return slot;
-            }
-        }
-    }
-
-    // No free disk slots available
-    return DISK_NO_SLOT_AVAILABLE;
+    return true;
 }
 
+
+static inline void mark_slots_used(const uint32_t start, const uint32_t count) {
+    for (uint32_t k = 0; k < count; k++) disk_mark_used(start + k);
+}
 
 inline static void disk_mark_free(const uint32_t slot) {
     disk_bitmap[slot / 8] = disk_bitmap[slot / 8] & ~(1 << (slot % 8));
 }
 
+
 /*
  * Free a previously allocated disk slot.
- * Marks the slot as free in the bitmap and updates the last_free_slot.
  */
 void disk_free_slot(const uint32_t slot) {
     disk_mark_free(slot);
 }
+
+void disk_free_slots(const uint32_t slot, const uint8_t slots_num) {
+    if (slot + slots_num >= DISK_BITMAP_SIZE * 8) return;
+    for (uint8_t i = 0; i < slots_num; i++)
+        disk_mark_free(slot + i);
+}
+
+// allocate via next fit algorithm
+
+
+static size_t last_alloc_index = 1;
+
+
+uint32_t disk_alloc_slots(const uint8_t slots_num) {
+    if (slots_num == 0) return DISK_NO_SLOT_AVAILABLE;
+
+    // Next-fit: from last_alloc_index to end (byte-wise), then wrap
+    for (size_t i = last_alloc_index; i < DISK_BITMAP_SIZE; i++) {
+        for (uint8_t j = 0; j < 8; j++) {
+            const uint32_t slot = (uint32_t) i * 8 + j;
+            if (!is_slot_free(slot)) continue;
+
+            if (are_slots_free(slot, slots_num)) {
+                mark_slots_used(slot, slots_num);
+                last_alloc_index = (slot + slots_num) / 8;
+                return slot;
+            }
+        }
+    }
+    for (size_t i = 0; i < last_alloc_index; i++) {
+        for (uint8_t j = 0; j < 8; j++) {
+            const uint32_t slot = (uint32_t) i * 8 + j;
+            if (!is_slot_free(slot)) continue;
+
+            if (are_slots_free(slot, slots_num)) {
+                mark_slots_used(slot, slots_num);
+                last_alloc_index = (slot + slots_num) / 8;
+                return slot;
+            }
+        }
+    }
+    return DISK_NO_SLOT_AVAILABLE;
+}
+
 
 
 /*
@@ -208,7 +235,7 @@ uint32_t parse_logical_sector_size(const uint16_t *identify_data) {
 
     // Check if Word 106 is valid (Bit 14 must be set)
     if (!(word_106 & (1 << 14))) {
-        //todo raise panic beacuse this is not correct
+        // TODO: Raise panic because this is not correct
         return 512;
     }
 
@@ -225,7 +252,7 @@ uint32_t parse_logical_sector_size(const uint16_t *identify_data) {
         return logical_sector_size_in_words * 2;
     }
 
-    //todo raise panic beacuse I dont know what the hell to do
+    // TODO: Raise panic because I don't know what to do
     return 512;
 }
 
@@ -249,7 +276,7 @@ uint32_t parse_physical_sector_size(const uint16_t *identify_data) {
 
 
 // Identifies the specified drive and extracts information into identifyDeviceData.
-bool identify_drive(uint16_t base_port, uint8_t drive, identifyDeviceData *data) {
+bool identify_drive(const uint16_t base_port, const uint8_t drive, identifyDeviceData *data) {
     uint16_t identify_data[256];
 
     // Select the drive
@@ -319,15 +346,14 @@ bool identify_drive(uint16_t base_port, uint8_t drive, identifyDeviceData *data)
 
 /*
  * Reads sectors from the specified disk into the provided buffer.
- * Explnations about how the reading operation works:
- * 1. Beacuse we are using a pooling strategy it waits for the BSY flag to clear
+ * Explanations about how the reading operation works:
+ * 1. Because we are using a polling strategy, it waits for the BSY flag to clear.
  * 2. It sends the drive selection and LBA address to the disk.
- * 2.
- * 5. It sends the READ SECTORS command to the disk.
- * 6. It waits for the BSY flag to clear and the DRQ flag to set.
- * 7. It reads the data from the disk into the buffer.
- * 8. It repeats the process for the specified number of sectors.
- * 9. It returns true if the operation was successful, false otherwise.
+ * 3. It sends the READ SECTORS command to the disk.
+ * 4. It waits for the BSY flag to clear and the DRQ flag to set.
+ * 5. It reads the data from the disk into the buffer.
+ * 6. It repeats the process for the specified number of sectors.
+ * 7. It returns true if the operation was successful, false otherwise.
  *
  * @param disk_num      The disk number (0-3).
  * @param lba_address   The starting LBA address.
@@ -355,7 +381,7 @@ bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const 
         return false;
     }
 
-    // TODO: Add optimization to check what drive is currently selected and only change if
+    // TODO: Add optimization to check which drive is currently selected and only change if
     // needed to avoid the delay400ns.
     // Send the highest 4 bits of the LBA, ORed with the drive selection
     outb(base_port + ATA_REG_DRIVE_SELECT, drive | get_lba_highest(lba_address));
@@ -379,7 +405,7 @@ bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const 
 
     // Delay after sending the command
     delayAfterCommand(base_port);
-    //todo i think that for my implemntation its not needed because i wait for the flags.
+    // TODO: I think that for my implementation it's not needed because I wait for the flags.
 
     uint16_t *buffer16 = (uint16_t*)buffer;
     for (uint16_t i = 0; i < sector_count; i++) {
@@ -403,7 +429,7 @@ bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const 
 /*
  * Writes sectors to the specified disk from the provided buffer.
  * Explanations about how the writing operation works:
- * 1. Beacuse we are using a pooling strategy it waits for the BSY flag to clear
+ * 1. Because we are using a polling strategy, it waits for the BSY flag to clear.
  * 2. It sends the drive selection and LBA address to the disk.
  * 3. It sends the sector count to the disk.
  * 4. It sends the WRITE SECTORS command to the disk.
@@ -435,7 +461,7 @@ bool ata_write_sectors(uint8_t disk_num, const uint32_t lba_address, const uint8
     // we are using pooling so we need to wait for the busy flag to clear
     while (!ata_wait_for_bsy(base_port));
 
-    // TODO: Add optimization to check what drive is currently selected and only change if needed
+    // TODO: Add optimization to check which drive is currently selected and only change if needed
     // to avoid the delay400ns.
     // Send the highest 4 bits of the LBA, ORed with the drive selection
     outb(base_port + ATA_REG_DRIVE_SELECT, drive | get_lba_highest(lba_address));
@@ -533,7 +559,6 @@ void test_disk_driver(){
 static uint8_t curr_disk = 0;
 
 void switch_disk(uint8_t num) {
-void switch_disk(uint8_t num) {
     if (num < 4 && disks[num] && disks[num]->valid)
         curr_disk = num;
 }
@@ -613,7 +638,7 @@ size_t disk_write(uint32_t lba, const void *buffer, const size_t len) {
     size_t total_sectors = len / sector_size;
 
     /* Temporary buffer to hold one sector's data */
-    uint8_t temp_buffer[sector_size * MAX_SECTORS_PER_CALL]; //todo use kmalloc instead of using the stack
+    uint8_t temp_buffer[sector_size * MAX_SECTORS_PER_CALL]; // TODO: Use kmalloc instead of using the stack
     while (total_sectors > 0) {
         uint8_t sectors_this_call = (total_sectors >= MAX_SECTORS_PER_CALL)
                                         ? 0 // ATA: 0→256
@@ -634,7 +659,7 @@ size_t disk_write(uint32_t lba, const void *buffer, const size_t len) {
 
 
     if (len % disk->logical_sector_size) {
-        // the last sector is not full so need to read it and write it back to make sure we dont overwrite data
+        // The last sector is not full, so we need to read it and write it back to make sure we don't overwrite data
         uint32_t last_sector = lba;
         uint8_t temp[disk->logical_sector_size];
         if (!ata_read_sectors(curr_disk, last_sector, 1, temp))
@@ -645,3 +670,8 @@ size_t disk_write(uint32_t lba, const void *buffer, const size_t len) {
     }
     return len;
 }
+
+size_t disk_get_current_disk_logical_sector_size() {
+    return disks[curr_disk]->logical_sector_size;
+}
+
