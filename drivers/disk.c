@@ -428,6 +428,7 @@ bool ata_write_sectors(uint8_t disk_num, const uint32_t lba_address, const uint8
     if (lba_address + sector_count >= disk->total_sectors)
         return false;
 
+
     uint16_t base_port = disk->base_io_port;
     uint8_t drive = disk->slave ? SLAVE_DRIVE : MASTER_DRIVE;
 
@@ -592,14 +593,14 @@ size_t disk_read(uint32_t addr, void *buffer, const size_t len) {
 
 /*
  * Write len bytes to the current disk (assumed to be disks[curr_disk])
- * starting at logical block address addr, splitting the operation into
+ * starting at logical block address lba, splitting the operation into
  * multiple calls if necessary.
  *
  * Returns the number of bytes written on success (which will be len if no errors occur),
  *
  */
 
-size_t disk_write(uint32_t addr, const void *buffer, const size_t len) {
+size_t disk_write(uint32_t lba, const void *buffer, const size_t len) {
     size_t total_written = 0;
 
     /* Get disk info for current disk (curr_disk is assumed global) */
@@ -622,23 +623,23 @@ size_t disk_write(uint32_t addr, const void *buffer, const size_t len) {
 
         memcpy(temp_buffer, (const uint8_t *) buffer + total_written, bytes_this_call);
 
-        if (!ata_write_sectors(curr_disk, addr, sectors_this_call, temp_buffer))
+        if (!ata_write_sectors(curr_disk, lba, sectors_this_call, temp_buffer))
             return total_written;
 
         total_written += bytes_this_call;
         total_sectors -= sectors_xfer;
-        addr += sectors_xfer;
+        lba += sectors_xfer;
     }
 
 
     if (len % disk->logical_sector_size) {
         // the last sector is not full so need to read it and write it back to make sure we dont overwrite data
-        uint32_t last_sector = addr;
-        uint8_t temp_buffer[disk->logical_sector_size];
-        if (!ata_read_sectors(curr_disk, last_sector, 1, temp_buffer))
+        uint32_t last_sector = lba;
+        uint8_t temp[disk->logical_sector_size];
+        if (!ata_read_sectors(curr_disk, last_sector, 1, temp))
             return total_written;
-        memcpy(temp_buffer, (uint8_t *) buffer + total_written, len % disk->logical_sector_size);
-        if (!ata_write_sectors(curr_disk, last_sector, 1, temp_buffer))
+        memcpy(temp, (uint8_t *) buffer + total_written, len % disk->logical_sector_size);
+        if (!ata_write_sectors(curr_disk, last_sector, 1, temp))
             return total_written;
     }
     return len;
