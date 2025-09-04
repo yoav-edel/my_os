@@ -20,6 +20,7 @@ ISO_DIR = iso/boot
 GRUB_DIR = $(ISO_DIR)/grub
 MEMORY_DIR = memory
 PROCESS_DIR = processes
+TEST_DIR = tests
 
 # Files
 ASM_FILES = $(SRC_DIR)multiboot.asm $(SRC_DIR)start.asm $(INTERRUPTS_DIR)/isr_stubs.asm $(PROCESS_DIR)/context_switch.asm
@@ -45,7 +46,8 @@ C_FILES = $(SRC_DIR)kernel.c \
           $(PROCESS_DIR)/pcb.c \
           $(PROCESS_DIR)/pid.c \
           $(PROCESS_DIR)/process.c \
-          $(PROCESS_DIR)/scheduler.c
+          $(PROCESS_DIR)/scheduler.c \
+          $(TEST_DIR)/disk_tests.c
 
 OBJS = $(ASM_FILES:.asm=.o) $(C_FILES:.c=.o)
 
@@ -54,7 +56,6 @@ KERNEL = kernel.bin
 ISO = kernel.iso
 DISK_IMG = disk.img
 
-.PHONY: all clean run debug create-disk
 
 all: $(ISO) $(DISK_IMG)
 
@@ -82,6 +83,7 @@ $(ISO): $(KERNEL)
 	@echo "}" >> $(GRUB_DIR)/grub.cfg
 	grub-mkrescue -o $@ iso
 
+.PHONY: all clean run debug  run-tests
 # Create a raw disk image
 $(DISK_IMG):
 	qemu-img create -f raw $(DISK_IMG) 64M
@@ -103,4 +105,9 @@ debug: $(ISO) $(DISK_IMG)
 	qemu-system-i386 -s -S -cdrom kernel.iso -drive file=disk.img,format=raw,if=ide,index=0,media=disk -serial stdio &
 	# Open a new Windows console window that runs WSL bash to change directory and start GDB
 	cmd.exe /C start bash -c "cd $(ISO_DIR) && gdb kernel.bin -ex 'target remote :1234'"
+
+
+run-tests: CFLAGS+=-DRUN_TESTS
+run-tests: clean $(ISO) $(DISK_IMG)
+	qemu-system-i386 -cdrom kernel.iso -drive file=disk.img,format=raw,if=ide,index=0,media=disk -serial stdio
 

@@ -527,33 +527,6 @@ void init_disk_driver(){
     }
 }
 
-void test_disk_driver(){
-    uint8_t buffer1[1024] = "hello world!";
-    buffer1[1022] = 'a';
-    uint8_t buffer2[1024] = {0};
-    //write to the first sector of the disk - hello world!
-
-
-    if(!ata_write_sectors(0, 0, 2, buffer1))
-    {
-        printf("failed to write to the first sector of the disk\n");
-        return;
-    }
-    printf("done writing\n");
-    //read from the first sector of the disk
-
-    if(!ata_read_sectors(0, 0, 2, buffer2))
-    {
-        printf("failed to read the first sector of the disk\n");
-        return;
-    }
-    for(int i = 0; i < 1024; i++)
-    {
-        printf("%c", buffer2[i]);
-    }
-    printf("\ndone reading\n");
-}
-
 // ------------------------------------------------------------
 // Wrapper functions for the disk driver, to allow easy access
 static uint8_t curr_disk = 0;
