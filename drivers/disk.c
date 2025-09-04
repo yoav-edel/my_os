@@ -533,7 +533,8 @@ void test_disk_driver(){
 static uint8_t curr_disk = 0;
 
 void switch_disk(uint8_t num) {
-    if (num < 4 && disks[num]->valid)
+void switch_disk(uint8_t num) {
+    if (num < 4 && disks[num] && disks[num]->valid)
         curr_disk = num;
 }
 
