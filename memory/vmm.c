@@ -72,32 +72,32 @@ static inline void load_page_dir(physical_addr page_dir_addr) {
     asm volatile ("mov %0, %%cr3"::"r"(page_dir_addr));
 }
 
-static inline void page_entry_set_frame(page_entry_t *e, uint32_t frame_addr) {
+static inline void page_entry_set_frame(page_entry_t *const e, const uint32_t frame_addr) {
     *e = (*e & ~0xFFFFF000) | frame_addr;
 }
 
-static inline void page_entry_add_attrib(page_entry_t *e, uint32_t attrib) {
+static inline void page_entry_add_attrib(page_entry_t *const e, const uint32_t attrib) {
     *e |= attrib;
 }
 
 
-static inline void page_entry_remove_attrib(page_entry_t *e, uint32_t attrib) {
+static inline void page_entry_remove_attrib(page_entry_t *e, const uint32_t attrib) {
     *e &= ~attrib;
 }
 
-static inline bool is_swapped(page_entry_t e) {
+static inline bool is_swapped(const page_entry_t e) {
     return e & SWAPPED;
 }
 
-static inline bool is_page_present_error(uint32_t error_code) {
+static inline bool is_page_present_error(const uint32_t error_code) {
     return error_code & 0x1;
 }
 
-static inline bool is_page_write_error(uint32_t error_code) {
+static inline bool is_page_write_error(const uint32_t error_code) {
     return error_code & 0x2;
 }
 
-static inline bool is_page_user_error(uint32_t error_code) {
+static inline bool is_page_user_error(const uint32_t error_code) {
     return error_code & 0x4;
 }
 
@@ -121,13 +121,25 @@ static inline void flush_page(uint32_t vir_addr) {
     asm volatile ("invlpg (%0)"::"r"(vir_addr) : "memory");
 }
 
+static inline uint32_t disk_alloc_slots_for_page() {
+    const uint32_t sector_size = disk_get_current_disk_logical_sector_size();
+    const uint32_t sector_amount = PAGE_SIZE / sector_size + (PAGE_SIZE % sector_size != 0);
+    return disk_alloc_slots(sector_amount);
+}
+
+static inline void disk_free_slots_for_page(const uint32_t start_slot) {
+    const uint32_t sector_size = disk_get_current_disk_logical_sector_size();
+    const uint32_t sector_amount = PAGE_SIZE / sector_size + (PAGE_SIZE % sector_size != 0);
+    disk_free_slots(start_slot, sector_amount);
+}
+
 // ---------------------------- Page FIFO Algorithm ----------------------------
 
 
 static void page_fifo_enqueue(page_fifo_node_t *node) {
-    if (current_page_fifo_queue.head == NULL) {
+    if (current_page_fifo_queue.head == NULL)
         current_page_fifo_queue.head = current_page_fifo_queue.tail = node;
-    } else {
+    else {
         current_page_fifo_queue.tail->next = node;
         current_page_fifo_queue.tail = node;
     }
@@ -171,7 +183,7 @@ void enable_paging() {
 }
 
 
-void vmm_switch_vm_context(vm_context_t *vm_context) {
+void vmm_switch_vm_context(const vm_context_t *vm_context) {
     if (vm_context == NULL)
         panic("Trying to switch to a NULL vm_context, what the hell are you doing?");
     current_directory = vm_context->page_dir;
@@ -190,7 +202,7 @@ bool vmm_swap_out_page(void *vir_addr) {
     if (!is_page_present(*e))
         return false;
 
-    const uint32_t disk_slot = disk_alloc_slot();
+    const uint32_t disk_slot = disk_alloc_slots_for_page();
     if (disk_slot == DISK_NO_SLOT_AVAILABLE)
         return false;
 
@@ -221,7 +233,7 @@ bool vmm_swap_out_some_page() {
  * Swaps in a page from the disk
  * return true if the swap was successful, false otherwise
  */
-bool vmm_swap_in_page(page_entry_t *e, uint32_t vir_addr) {
+bool vmm_swap_in_page(page_entry_t *e, const uint32_t vir_addr) {
     physical_addr frame_addr = pmm_alloc_frame();
     if (frame_addr == PMM_NO_FRAME_AVAILABLE) {
         if (!vmm_swap_out_some_page())
@@ -231,13 +243,12 @@ bool vmm_swap_in_page(page_entry_t *e, uint32_t vir_addr) {
             return false;
     }
 
-    uint32_t disk_slot = get_frame_addr(*e);
 
     page_entry_set_frame(e, frame_addr);
 
+    const uint32_t disk_slot = get_frame_addr(*e);
     while (disk_read(disk_slot, (void *) frame_addr, PAGE_SIZE) != PAGE_SIZE);
-    disk_free_slot(disk_slot);
-
+    disk_free_slots_for_page(disk_slot);
     // add the present attribute and remove the swapped attribute
     page_entry_add_attrib(e, PRESENT);
     page_entry_remove_attrib(e, SWAPPED);
@@ -293,10 +304,10 @@ void vmm_free_page(page_entry_t *e) {
 /*
  * Maps a page to a frame
  */
-void vmm_map_page(page_directory_t *page_dir, void *vir_addr, physical_addr phys_addr, uint32_t flags) {
+void vmm_map_page(page_directory_t *page_dir, void *vir_addr, physical_addr phys_addr, const uint32_t flags) {
     assert(page_dir != NULL);
-    uint32_t pd_index = get_directory_index(vir_addr);
-    uint32_t pt_index = get_table_index(vir_addr);
+    const uint32_t pd_index = get_directory_index(vir_addr);
+    const uint32_t pt_index = get_table_index(vir_addr);
     page_table_t *page_table;
     if (is_page_present(page_dir->tables[pd_index])) // the table is exist and present
         page_table = (page_table_t *) get_page_table_addr(page_dir, pd_index);
@@ -350,9 +361,9 @@ void vmm_unmap_page(void *vir_addr) {
     }
     else if(is_swapped(*e))
     {
-    	uint32_t disk_slot = get_frame_addr(*e);
-    	disk_free_slot(disk_slot);
-    	*e = 0;
+        const uint32_t disk_slot = get_frame_addr(*e);
+        disk_free_slots_for_page(disk_slot);
+        *e = 0;
     }
     flush_page((uint32_t) vir_addr);
 
@@ -457,8 +468,8 @@ void vmm_destroy_page_directory(page_directory_t *page_dir) {
         }
         //todo handle cow pages
         if (is_swapped(page_dir->tables[i])) {
-            uint32_t disk_slot = get_frame_addr(page_dir->tables[i]);
-            disk_free_slot(disk_slot);
+            const uint32_t disk_slot = get_frame_addr(page_dir->tables[i]);
+            disk_free_slots_for_page(disk_slot);
         }
     }
     kfree(page_dir);
@@ -470,8 +481,8 @@ void vmm_destroy_page_directory(page_directory_t *page_dir) {
 *    copy the mapping of the page_directory to the new page directory (if null copy the kernel mapping)
 *
  */
-vm_context_t *vmm_create_vm_context(page_directory_t *page_dir) {
-  //todo handle cow pages
+vm_context_t *vmm_create_vm_context(const page_directory_t *page_dir) {
+    //todo handle cow pages
     vm_context_t *vm_context = (vm_context_t *) kmalloc(sizeof(vm_context_t));
     if (vm_context == NULL)
         return NULL;
@@ -481,7 +492,8 @@ vm_context_t *vmm_create_vm_context(page_directory_t *page_dir) {
     //todo the not kernel mapping should be copied using copy on write
     for (size_t i = 0; i < TABLES_PER_DIR - 1; i++)
         vm_context->page_dir->tables[i] = page_dir->tables[i];
-    // calc the physical address of the page directory using the kernel mapping beacuse the page direcotry is saved in the kerenl space
+    // calc the physical address of the page directory using the kernel mapping beacuse
+    // the page direcotry is saved in the kerenl space
     vm_context->page_dir_phys_addr = vmm_calc_phys_addr(vm_context->page_dir);
     // Map the recursive page table to point to the new page directory
     vm_context->page_dir->tables[RECURSIVE_PAGE_TABLE_INDEX] = vm_context->page_dir_phys_addr | KERNEL_PAGE_FLAGS;
@@ -507,7 +519,8 @@ void vmm_init() {
     extern const unsigned int _kernel_stack_top, _kernel_stack_pages_amount;
     size_t kernel_size = (size_t) (&_kernel_end - &_kernel_start);
     //Create frame for the kernel and map them to the lower half memory(identity mapping)
-    // This is done so it would be easy to copy for new page directories the kernel mapping because we dont want to swap in the kernel mapping
+    // This is done so it would be easy to copy for new page directories the kernel mapping because
+    // we dont want to swap in the kernel mapping
     size_t kernel_frames = (kernel_size + PAGE_SIZE - 1) / PAGE_SIZE;
 
     // the allocation of the frames in pmm is done in the pmm_init function
