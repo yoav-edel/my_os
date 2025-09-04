@@ -11,8 +11,8 @@
  * And the recommended approach is to read the Status Register 15 times, but only use the last value.
  * Since each I/O read takes about 30ns, this results in a 420ns delay, allowing the drive enough time to update.
  * Also after sending a command to the Command Register, it is recommended to read the Alternate Status Register
- * four times because ofcurse whoever design it made it possible thatERR or DF bits are incorrect just to screw
- * with me to more. If you find a place that i put the delay and you think its not needed please let me know.
+     * four times because of course whoever designed it made it possible that ERR or DF bits are incorrect just to screw
+     * with me even more. If you find a place that I put the delay and you think it's not needed please let me know.
 
  */
 
