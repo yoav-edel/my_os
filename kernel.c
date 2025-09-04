@@ -42,8 +42,14 @@ void kernel_main() {
 
     clear_screen();
     printf("Kernel loaded successfully. its yoav kernel\n");
-    test_pmm();
-    test_kmalloc();
+#ifdef RUN_TESTS
+    printf("testing\n");
+    // test_pmm();
+    // test_kmalloc();
+    run_disk_tests();
+#else
+    shell();
+#endif
     while (1) {
         asm volatile("hlt");
     }
