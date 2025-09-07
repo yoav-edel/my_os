@@ -4,3 +4,11 @@
 !*.asm
 !*.txt
 !*.ld
+
+# Build artifacts
+*.o
+*.bin
+*.iso
+*.img
+iso/
+Makefile.backup
