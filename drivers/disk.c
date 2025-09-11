@@ -13,7 +13,8 @@
  * Since each I/O read takes about 30ns, this results in a 420ns delay, allowing the drive enough time to update.
  * Also, after sending a command to the Command Register, it is recommended to read the Alternate Status Register
  * four times because, of course, whoever designed it made it possible that ERR or DF bits are incorrect just to
- * complicate things further. If you find a place where I put the delay and you think it's not needed, please let me know.
+ * complicate things further. If you find a place where I put the delay and you think it's not needed,
+ * please let me know.
 
  */
 
@@ -170,9 +171,9 @@ static bool ata_wait_for_bsy(uint16_t base_port) {
  * @param base_port The base I/O port for the ATA channel.
  * @return true if the DRQ flag is set, false if an error occurred or the timeout was reached.
  */
-static bool ata_wait_for_drq(uint16_t base_port) {
+static bool ata_wait_for_drq(const uint16_t base_port) {
     for (int timeout = 0; timeout < 1000000; timeout++) {
-        uint8_t status = inb(base_port + ATA_REG_CMD_STATUS);
+        const uint8_t status = inb(base_port + ATA_REG_CMD_STATUS);
         if (status & ATA_STATUS_ERR) {
             return false; // An error occurred
         }
@@ -214,7 +215,7 @@ static inline void delay400ns(uint16_t base_port) {
  * four reads of the Status Register after sending a command byte may have the ERR or DF
  * bits still set.
  */
-static inline void delayAfterCommand(uint16_t base_port) {
+static inline void delayAfterCommand(const uint16_t base_port) {
     for (int i = 0; i < 4; i++) {
         (void)inb(base_port + ATA_REG_ALTSTATUS);
     }
@@ -223,7 +224,10 @@ static inline void delayAfterCommand(uint16_t base_port) {
 /*
  * the function makes sure that the data has been written to the disk from the cache.
  */
-inline static void flush_cache(uint16_t base_port) {
+inline static void flush_cache(const uint8_t disk_num) {
+    if (disk_num >= sizeof(disks) / sizeof(disks[0]) || !disks[disk_num]->valid)
+        return;
+    const uint16_t base_port = disks[disk_num]->base_io_port;
     outb(base_port + ATA_REG_CMD_STATUS, ATA_CMD_FLUSH);
     delayAfterCommand(base_port);
 }
@@ -231,7 +235,7 @@ inline static void flush_cache(uint16_t base_port) {
 
 uint32_t parse_logical_sector_size(const uint16_t *identify_data) {
     // Word 106 - Physical/Logical Sector Size Information
-    uint16_t word_106 = identify_data[106];
+    const uint16_t word_106 = identify_data[106];
 
     // Check if Word 106 is valid (Bit 14 must be set)
     if (!(word_106 & (1 << 14))) {
@@ -242,11 +246,11 @@ uint32_t parse_logical_sector_size(const uint16_t *identify_data) {
     // Check if the device supports logical sector sizes larger than 256 words (Bit 12)
     if (word_106 & (1 << 12)) {
         // Logical Sector Size Supported - Retrieve Words 117 and 118
-        uint16_t word_117 = identify_data[117];
-        uint16_t word_118 = identify_data[118];
+        const uint16_t word_117 = identify_data[117];
+        const uint16_t word_118 = identify_data[118];
 
         // Combine Words 117 and 118 to get the logical sector size in words
-        uint32_t logical_sector_size_in_words = ((uint32_t)word_118 << 16) | word_117;
+        const uint32_t logical_sector_size_in_words = ((uint32_t) word_118 << 16) | word_117;
 
         // Convert the size to bytes (1 word = 2 bytes)
         return logical_sector_size_in_words * 2;
@@ -259,12 +263,12 @@ uint32_t parse_logical_sector_size(const uint16_t *identify_data) {
 
 // Parse Physical Sector Size
 uint32_t parse_physical_sector_size(const uint16_t *identify_data) {
-    uint16_t word_106 = identify_data[106];
+    const uint16_t word_106 = identify_data[106];
 
     // Check if the Logical-to-Physical Sector Relationship Supported bit (Bit 3:0) is valid
     if (word_106 & (1 << 3)) {
-        uint8_t logical_to_physical_ratio = word_106 & 0x0F; // Bits 3:0 indicate the ratio
-        uint32_t logical_sector_size = parse_logical_sector_size(identify_data);
+        const uint8_t logical_to_physical_ratio = word_106 & 0x0F; // Bits 3:0 indicate the ratio
+        const uint32_t logical_sector_size = parse_logical_sector_size(identify_data);
 
         // Calculate physical sector size
         return logical_sector_size << logical_to_physical_ratio;
@@ -365,15 +369,15 @@ bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const 
     if (disk_num >= sizeof(disks) / sizeof(disks[0]))
         return false;
 
-    identifyDeviceData *disk = disks[disk_num];
+    const identifyDeviceData *disk = disks[disk_num];
     if (!disk->valid || !is_lba_supported(disk))
         return false;
 
-    if(lba_address + sector_count >= disk->total_sectors)
+    const uint32_t count = sector_count == 0 ? 256 : sector_count;
+    if (lba_address + count > disk->total_sectors)
         return false;
-
-    uint16_t base_port = disk->base_io_port;
-    uint8_t drive = disk->slave ? SLAVE_DRIVE : MASTER_DRIVE;
+    const uint16_t base_port = disk->base_io_port;
+    const uint8_t drive = disk->slave ? SLAVE_DRIVE : MASTER_DRIVE;
 
     // we are using pooling so we need to wait for the busy flag to clear
     if (!ata_wait_for_bsy(base_port)) {
@@ -408,7 +412,7 @@ bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const 
     // TODO: I think that for my implementation it's not needed because I wait for the flags.
 
     uint16_t *buffer16 = (uint16_t*)buffer;
-    for (uint16_t i = 0; i < sector_count; i++) {
+    for (uint16_t i = 0; i < count; i++) {
         // Wait for BSY to clear and DRQ to set
         if (!ata_wait_for_bsy(base_port) || !ata_wait_for_drq(base_port))
             return false;
@@ -451,7 +455,8 @@ bool ata_write_sectors(uint8_t disk_num, const uint32_t lba_address, const uint8
     if (!disk->valid || !is_lba_supported(disk))
         return false;
 
-    if (lba_address + sector_count >= disk->total_sectors)
+    const uint32_t count = sector_count == 0 ? 256 : sector_count;
+    if (lba_address + count >= disk->total_sectors)
         return false;
 
 
@@ -483,7 +488,7 @@ bool ata_write_sectors(uint8_t disk_num, const uint32_t lba_address, const uint8
     delayAfterCommand(base_port);
 
     const uint16_t *buffer16 = (uint16_t *) buffer;
-    for (uint16_t i = 0; i < sector_count; i++) {
+    for (uint16_t i = 0; i < count; i++) {
         // Wait for BSY to clear and DRQ to set
         if (!ata_wait_for_bsy(base_port) || !ata_wait_for_drq(base_port))
             return false;
@@ -493,7 +498,7 @@ bool ata_write_sectors(uint8_t disk_num, const uint32_t lba_address, const uint8
 
         buffer16 += disk->logical_sector_size / 2;
         asm volatile("jmp 1f\n\t" "1:");  // small delay to allow the drive to finish the operation
-        flush_cache(base_port);
+        flush_cache(disk_num);
     }
 
     return true;
@@ -531,9 +536,9 @@ void init_disk_driver(){
 // Wrapper functions for the disk driver, to allow easy access
 static uint8_t curr_disk = 0;
 
-void switch_disk(uint8_t num) {
-    if (num < 4 && disks[num] && disks[num]->valid)
-        curr_disk = num;
+void switch_disk(const uint8_t disk_num) {
+    if (disk_num < 4 && disks[disk_num] && disks[disk_num]->valid)
+        curr_disk = disk_num;
 }
 
 /*
@@ -553,7 +558,7 @@ size_t disk_read(uint32_t addr, void *buffer, const size_t len) {
         return 0;
 
 
-    size_t sector_size = disk->logical_sector_size;
+    const size_t sector_size = disk->logical_sector_size;
     /* Calculate the number of sectors needed to cover len bytes (rounding up) */
     size_t total_sectors = (len + sector_size - 1) / sector_size;
 
@@ -613,9 +618,9 @@ size_t disk_write(uint32_t lba, const void *buffer, const size_t len) {
     /* Temporary buffer to hold one sector's data */
     uint8_t temp_buffer[sector_size * MAX_SECTORS_PER_CALL]; // TODO: Use kmalloc instead of using the stack
     while (total_sectors > 0) {
-        uint8_t sectors_this_call = (total_sectors >= MAX_SECTORS_PER_CALL)
-                                        ? 0 // ATA: 0→256
-                                        : (uint8_t) total_sectors; // ATA: 1..255
+        const uint8_t sectors_this_call = (total_sectors >= MAX_SECTORS_PER_CALL)
+                                              ? 0 // ATA: 0→256
+                                              : (uint8_t) total_sectors; // ATA: 1..255
 
         const size_t sectors_xfer = (sectors_this_call == 0) ? MAX_SECTORS_PER_CALL : sectors_this_call;
         const size_t bytes_this_call = sectors_xfer * sector_size;
@@ -633,13 +638,14 @@ size_t disk_write(uint32_t lba, const void *buffer, const size_t len) {
 
     if (len % disk->logical_sector_size) {
         // The last sector is not full, so we need to read it and write it back to make sure we don't overwrite data
-        uint32_t last_sector = lba;
+        const uint32_t last_sector = lba;
         uint8_t temp[disk->logical_sector_size];
         if (!ata_read_sectors(curr_disk, last_sector, 1, temp))
             return total_written;
         memcpy(temp, (uint8_t *) buffer + total_written, len % disk->logical_sector_size);
         if (!ata_write_sectors(curr_disk, last_sector, 1, temp))
             return total_written;
+        flush_cache(curr_disk);
     }
     return len;
 }
