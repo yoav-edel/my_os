@@ -128,30 +128,31 @@ TEST(test_disk_wrapper_exact_small) {
     const size_t sec = disk_get_current_disk_logical_sector_size();
     const uint32_t lba = LBA_BASE + 800;
     const size_t len = 4 * sec;
-    uint8_t *w = (uint8_t *) kmalloc(len), *r = (uint8_t*)kmalloc(len);
+    uint8_t *w = (uint8_t *) kmalloc(len), *r = (uint8_t *) kmalloc(len);
     fill_pattern(w, len, 0x1111);
     CHECK_EQ(disk_write(lba, w, len), len, "disk_write exact (4 sectors)");
     CHECK_EQ(disk_read (lba, r, len), len, "disk_read  exact (4 sectors)");
     CHECK_MEMEQ(w, r, len, "exact multiple round-trip (small)");
-    kfree(w); kfree(r);
+    kfree(w);
+    kfree(r);
 }
 
 TEST(test_disk_wrapper_unaligned_sizes) {
     const size_t sec = disk_get_current_disk_logical_sector_size();
     const uint32_t bases[] = {LBA_BASE + 1200, LBA_BASE + 1300, LBA_BASE + 1400, LBA_BASE + 1500};
-    const size_t lens[] = {1, sec-1, sec+1, 3*sec + 123 };
+    const size_t lens[] = {1, sec - 1, sec + 1, 3 * sec + 123};
     for (int i = 0; i < 4; i++) {
         const uint32_t lba = bases[i];
         const size_t len = lens[i];
 
         // Seed a small area to validate RMW correctness
         const size_t pre = 4 * sec;
-        uint8_t *garb = (uint8_t*)kmalloc(pre);
+        uint8_t *garb = (uint8_t *) kmalloc(pre);
         memset(garb, 0xA5, pre);
         (void) disk_write(lba, garb, pre);
         kfree(garb);
 
-        uint8_t *w = (uint8_t *) kmalloc(len), *r = (uint8_t*)kmalloc(len);
+        uint8_t *w = (uint8_t *) kmalloc(len), *r = (uint8_t *) kmalloc(len);
         fill_pattern(w, len, 0x3333 + i);
         memset(r, 0, len);
         CHECK_EQ(disk_write(lba, w, len), len, "disk_write unaligned (small)");
@@ -191,7 +192,12 @@ TEST(test_slot_allocator_small) {
     ok = 1;
     for (int i = 0; i < 8; i++) {
         uint32_t s = disk_alloc_slot();
-        if (s == DISK_NO_SLOT_AVAILABLE){ ok=0; break; } disk_free_slot(s); }
+        if (s == DISK_NO_SLOT_AVAILABLE) {
+            ok = 0;
+            break;
+        }
+        disk_free_slot(s);
+    }
     CHECK(ok, "disk_free_slot -> slots reusable");
 }
 
