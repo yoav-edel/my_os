@@ -612,7 +612,7 @@ size_t disk_write(uint32_t lba, const void *buffer, const size_t len) {
     if (!disk || !disk->valid)
         return 0;
 
-    size_t sector_size = disk->logical_sector_size;
+    const size_t sector_size = disk->logical_sector_size;
     size_t total_sectors = len / sector_size;
 
     /* Temporary buffer to hold one sector's data */
