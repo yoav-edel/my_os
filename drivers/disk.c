@@ -374,7 +374,7 @@ bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const 
         return false;
 
     const uint32_t count = sector_count == 0 ? 256 : sector_count;
-    if (lba_address + count > disk->total_sectors)
+    if (lba_address >= disk->total_sectors || count > disk->total_sectors - lba_address)
         return false;
     const uint16_t base_port = disk->base_io_port;
     const uint8_t drive = disk->slave ? SLAVE_DRIVE : MASTER_DRIVE;
@@ -456,7 +456,7 @@ bool ata_write_sectors(uint8_t disk_num, const uint32_t lba_address, const uint8
         return false;
 
     const uint32_t count = sector_count == 0 ? 256 : sector_count;
-    if (lba_address + count >= disk->total_sectors)
+    if (lba_address >= disk->total_sectors || count > disk->total_sectors - lba_address)
         return false;
 
 
