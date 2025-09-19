@@ -1,6 +1,7 @@
 #include "disk.h"
 #include "io.h"
 #include "screen.h"
+#include "../memory/kmalloc.h"
 #include "../memory/utills.h"
 #include "../memory/vmm.h"
 #include "../std/stdio.h"
@@ -373,7 +374,7 @@ bool ata_read_sectors(const uint8_t disk_num, const uint32_t lba_address, const 
     if (!disk->valid || !is_lba_supported(disk))
         return false;
 
-    const uint32_t count = sector_count == 0 ? 256 : sector_count;
+    const uint32_t count = sector_count == ATA_PIO_MAX_SECTORS_PER_CMD ? MAX_SECTORS_PER_CALL_SIZE : sector_count;
     if (lba_address >= disk->total_sectors || count > disk->total_sectors - lba_address)
         return false;
     const uint16_t base_port = disk->base_io_port;
@@ -455,7 +456,7 @@ bool ata_write_sectors(uint8_t disk_num, const uint32_t lba_address, const uint8
     if (!disk->valid || !is_lba_supported(disk))
         return false;
 
-    const uint32_t count = sector_count == 0 ? 256 : sector_count;
+    const uint32_t count = sector_count == ATA_PIO_MAX_SECTORS_PER_CMD ? MAX_SECTORS_PER_CALL_SIZE : sector_count;
     if (lba_address >= disk->total_sectors || count > disk->total_sectors - lba_address)
         return false;
 
@@ -563,22 +564,31 @@ size_t disk_read(uint32_t addr, void *buffer, const size_t len) {
     size_t total_sectors = (len + sector_size - 1) / sector_size;
 
     /* Temporary buffer to hold one sector's data */
-    uint8_t temp_buffer[sector_size * MAX_SECTORS_PER_CALL];
-
     while (total_sectors > 0) {
         uint8_t sectors_this_call;
-        if (total_sectors >= MAX_SECTORS_PER_CALL)
+        size_t bytes_ths_call;
+        if (total_sectors >= MAX_SECTORS_PER_CALL_SIZE) {
             sectors_this_call = 0;
-        else
+            bytes_ths_call = MAX_SECTORS_PER_CALL_SIZE * sector_size;
+        } else {
             sectors_this_call = total_sectors;
+            bytes_ths_call = sectors_this_call * sector_size;
+        }
 
-        /* Read sectors from the disk */
-        if (!ata_read_sectors(curr_disk, (uint32_t) addr, sectors_this_call, temp_buffer))
+        void *temp_buffer = kmalloc(bytes_ths_call);
+        if (!temp_buffer)
             return total_read;
-
+        memset(temp_buffer, 0, bytes_ths_call);
+        /* Read sectors from the disk */
+        if (!ata_read_sectors(curr_disk, (uint32_t) addr, sectors_this_call, temp_buffer)) {
+            kfree(temp_buffer);
+            return total_read;
+        }
 
         /* Determine how many sectors were read in this call */
-        size_t sectors_read = (sectors_this_call == 0 ? MAX_SECTORS_PER_CALL : sectors_this_call);
+        const size_t sectors_read = (sectors_this_call == ATA_PIO_MAX_SECTORS_PER_CMD
+                                         ? MAX_SECTORS_PER_CALL_SIZE
+                                         : sectors_this_call);
         size_t bytes_this_call = sectors_read * sector_size;
 
         // Adjust the number of bytes read if necessary
@@ -586,6 +596,7 @@ size_t disk_read(uint32_t addr, void *buffer, const size_t len) {
             bytes_this_call = len - total_read;
 
         memcpy((uint8_t *) buffer + total_read, temp_buffer, bytes_this_call);
+        kfree(temp_buffer);
         total_read += bytes_this_call;
         total_sectors -= sectors_read;
         addr += sectors_read;
@@ -616,20 +627,26 @@ size_t disk_write(uint32_t lba, const void *buffer, const size_t len) {
     size_t total_sectors = len / sector_size;
 
     /* Temporary buffer to hold one sector's data */
-    uint8_t temp_buffer[sector_size * MAX_SECTORS_PER_CALL]; // TODO: Use kmalloc instead of using the stack
     while (total_sectors > 0) {
-        const uint8_t sectors_this_call = (total_sectors >= MAX_SECTORS_PER_CALL)
-                                              ? 0 // ATA: 0→256
+        const uint8_t sectors_this_call = (total_sectors >= MAX_SECTORS_PER_CALL_SIZE)
+                                              ? ATA_PIO_MAX_SECTORS_PER_CMD // ATA: 0→256
                                               : (uint8_t) total_sectors; // ATA: 1..255
 
-        const size_t sectors_xfer = (sectors_this_call == 0) ? MAX_SECTORS_PER_CALL : sectors_this_call;
+        const size_t sectors_xfer = (sectors_this_call == ATA_PIO_MAX_SECTORS_PER_CMD)
+                                        ? MAX_SECTORS_PER_CALL_SIZE
+                                        : sectors_this_call;
         const size_t bytes_this_call = sectors_xfer * sector_size;
-
+        void *const temp_buffer = (uint8_t *) kmalloc(bytes_this_call);
+        if (!temp_buffer)
+            return total_written;
+        memset(temp_buffer, 0, bytes_this_call);
         memcpy(temp_buffer, (const uint8_t *) buffer + total_written, bytes_this_call);
 
-        if (!ata_write_sectors(curr_disk, lba, sectors_this_call, temp_buffer))
+        if (!ata_write_sectors(curr_disk, lba, sectors_this_call, temp_buffer)) {
+            kfree(temp_buffer);
             return total_written;
-
+        }
+        kfree(temp_buffer);
         total_written += bytes_this_call;
         total_sectors -= sectors_xfer;
         lba += sectors_xfer;
@@ -637,14 +654,18 @@ size_t disk_write(uint32_t lba, const void *buffer, const size_t len) {
 
 
     if (len % disk->logical_sector_size) {
-        // The last sector is not full, so we need to read it and write it back to make sure we don't overwrite data
+        // The last sector is not full, so we need to read it and write it back to make sure
+        // we don't overwrite data
         const uint32_t last_sector = lba;
-        uint8_t temp[disk->logical_sector_size];
+        void *const temp = kmalloc(disk->logical_sector_size);
+        if (!temp)
+            return total_written;
         if (!ata_read_sectors(curr_disk, last_sector, 1, temp))
             return total_written;
         memcpy(temp, (uint8_t *) buffer + total_written, len % disk->logical_sector_size);
         if (!ata_write_sectors(curr_disk, last_sector, 1, temp))
             return total_written;
+        kfree(temp);
         flush_cache(curr_disk);
     }
     return len;

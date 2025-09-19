@@ -37,7 +37,8 @@ void kernel_main() {
     init_disk_driver();
     pmm_init();
     vmm_init();
-//    processes_init();
+    init_kmalloc();
+    //    processes_init();
     asm volatile("sti"); // enable interrupts
 
     clear_screen();

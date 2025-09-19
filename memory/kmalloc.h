@@ -16,11 +16,10 @@ void *kmalloc(size_t size);
 void kfree(void *ptr);
 
 extern uint32_t KERNEL_BASE_HEAP_ADDR;
-#define NUM_CACHES 8
-#define MAX_CACHE_SIZE 2048
-#define KERNEL_HEAP_SIZE (PMM_BLOCK_SIZE * NUM_CACHES)
-
-
+#define NUM_CACHES 8u
+#define MAX_CACHE_SIZE 2048u
+#define EXTRA_BLOCKS  100u // extra blocks the kmalloc can use
+#define KERNEL_HEAP_SIZE (PMM_BLOCK_SIZE * (NUM_CACHES + EXTRA_BLOCKS))
 
 
 #endif //MYKERNELPROJECT_KMALLOC_H

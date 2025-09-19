@@ -40,7 +40,8 @@
 #define MASTER_DRIVE          0xE0 // Master drive, LBA mode
 #define SLAVE_DRIVE           0xF0 // Slave drive, LBA mode
 
-#define MAX_SECTORS_PER_CALL  256
+#define MAX_SECTORS_PER_CALL_SIZE  256
+#define ATA_PIO_MAX_SECTORS_PER_CMD 0
 
 // Identify Device Data Structure
 typedef struct {
