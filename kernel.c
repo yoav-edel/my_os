@@ -44,6 +44,7 @@ void kernel_main() {
     clear_screen();
     printf("Kernel loaded successfully. its yoav kernel\n");
 #ifdef RUN_TESTS
+#include "tests/disk_tests.h"
     printf("testing\n");
     // test_pmm();
     // test_kmalloc();
