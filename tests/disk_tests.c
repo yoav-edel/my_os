@@ -162,11 +162,14 @@ TEST(test_disk_wrapper_unaligned_sizes) {
         kfree(r);
     }
 }
-
 TEST(test_ata_oob_guard) {
-    uint8_t secbuf[512] = {0};
-    CHECK(!ata_read_sectors(0, 0x0FFFFFF0u, 0x10, secbuf), "ata_read_sectors rejects OOB");
-    CHECK(!ata_write_sectors(0, 0x0FFFFFF0u, 0x10, secbuf), "ata_write_sectors rejects OOB");
+    const size_t sector_size = disk_get_current_disk_logical_sector_size();
+    const uint8_t cnt = 0x10;
+    uint8_t *secbuf = (uint8_t *) kmalloc(sector_size * cnt);
+    memset(secbuf, 0, sector_size * cnt);
+    CHECK(!ata_read_sectors(0, 0x0FFFFFF0u, cnt, secbuf), "ata_read_sectors rejects OOB");
+    CHECK(!ata_write_sectors(0, 0x0FFFFFF0u, cnt, secbuf), "ata_write_sectors rejects OOB");
+    kfree(secbuf);
 }
 
 TEST(test_switch_disk_invalid) {
