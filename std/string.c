@@ -58,3 +58,14 @@ char *strncpy(char *dest, const char *src, int n) {
     }
     return dest;
 }
+
+int memcmp(const void *_Buf1, const void *_Buf2, const size_t _Size) {
+    const uint8_t *buf1 = (const uint8_t *) _Buf1;
+    const uint8_t *buf2 = (const uint8_t *) _Buf2;
+    for (size_t i = 0; i < _Size; i++) {
+        if (buf1[i] != buf2[i]) {
+            return buf1[i] - buf2[i];
+        }
+    }
+    return 0;
+}

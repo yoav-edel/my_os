@@ -37,13 +37,21 @@ void kernel_main() {
     init_disk_driver();
     pmm_init();
     vmm_init();
-//    processes_init();
+    init_kmalloc();
+    //    processes_init();
     asm volatile("sti"); // enable interrupts
 
     clear_screen();
     printf("Kernel loaded successfully. its yoav kernel\n");
-    test_pmm();
-    test_kmalloc();
+#ifdef RUN_TESTS
+#include "tests/disk_tests.h"
+    printf("testing\n");
+    // test_pmm();
+    // test_kmalloc();
+    run_disk_tests();
+#else
+    shell();
+#endif
     while (1) {
         asm volatile("hlt");
     }

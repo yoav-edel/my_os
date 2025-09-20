@@ -9,9 +9,9 @@
 #include <stdbool.h>
 
 // Memory Configuration
-#define MEMORY_SIZE 0x100000000 // 4GB
-#define PMM_BLOCK_SIZE 4096     // 4KB
-#define PMM_BITMAP_SIZE (MEMORY_SIZE / PMM_BLOCK_SIZE / 8) // 4GB / 4KB / 8 = 512KB
+#define MEMORY_SIZE 0x100000000u // 4GB
+#define PMM_BLOCK_SIZE 4096u     // 4KB
+#define PMM_BITMAP_SIZE (MEMORY_SIZE / PMM_BLOCK_SIZE / 8u) // 4GB / 4KB / 8 = 512KB
 #define PMM_NO_FRAME_AVAILABLE 0
 #define ALIGNED_TO_PHYSICAL_PAGE(addr) ((addr + PMM_BLOCK_SIZE - 1) & ~(PMM_BLOCK_SIZE - 1))
 
